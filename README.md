@@ -1,11 +1,14 @@
-#This repo contains 2 LLVM passes:
+This repo contains 2 LLVM passes:
+=================================
 
 1- Debloat: provides several obtions to perform debloating 
 
 2- Profiler: analysis pass that generates several statistics about number of methods, calls, instructions, basic blocks, etc..
 
 
-#Building steps
+Building steps:
+===============
+
 The following steps use `LLVM 6.0`. You can build your own LLVM pass or download a precompiled version
 
 - clone the repo
@@ -16,7 +19,9 @@ The following steps use `LLVM 6.0`. You can build your own LLVM pass or download
 		../LLVM_Debloating_Passes/`
 - `make`
 
-#Usage 
+Usage:
+======
+ 
 1- Debloating pass: `~/Downloads/LLVM_6.0/bin/opt -load \
 	build_debloat/Debloat/libLLVMDebloat.so \
  	-debloat -globals=$gbls -locals=$locals -bbfile=bbs.txt
