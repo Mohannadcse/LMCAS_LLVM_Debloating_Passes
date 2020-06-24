@@ -15,8 +15,8 @@ The following steps use `LLVM 6.0`. You can build your own LLVM pass or download
 
 - `mkdir build_debloat && cd build_debloat`
 
-- cmake -DLLVM_DIR=<path-to-llvm>/lib/cmake/llvm \
-		../LLVM_Debloating_Passes/
+- `cmake -DLLVM_DIR=<path-to-llvm>/lib/cmake/llvm \
+		../LLVM_Debloating_Passes/`
 - `make`
 
 Usage:
