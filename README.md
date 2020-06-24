@@ -11,16 +11,16 @@ Building steps:
 
 The following steps use `LLVM 6.0`. You can build your own LLVM pass or download a precompiled version
 
-- clone the repo
+1- clone the repo
 
-- `mkdir build_debloat && cd build_debloat`
+2- `mkdir build_debloat && cd build_debloat`
 
-- Run CMake with the path to the LLVM source
+3- Run CMake with the path to the LLVM source:
 
 	cmake -DLLVM_DIR=<path-to-llvm>/lib/cmake/llvm \
 			../LLVM_Debloating_Passes
 	
-- `make`
+4- `make`
 
 Usage:
 ======
