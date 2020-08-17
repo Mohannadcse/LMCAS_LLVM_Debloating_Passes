@@ -26,6 +26,8 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/User.h"
+//#include "llvm/IR/DerivedTypes.h"
+//#include "llvm/IR/Type.h"
 
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm-c/ExecutionEngine.h"
@@ -35,6 +37,7 @@
 #include <string>
 #include <fstream>
 #include <cassert>
+#include <vector>
 
 using namespace llvm;
 using namespace std;
@@ -133,7 +136,7 @@ int returnIndex(std::vector<Instruction*> list, Instruction *inst) {
 uint32_t neckIndex(Module &module, std::vector<Instruction*> &instList) {
 	instList.clear();
 	uint32_t neckIdx = 0;
-	//	outs() << "Find the index of the Neck\n";
+//	outs() << "Find the index of the Neck\n";
 	for (auto curF = module.getFunctionList().begin(), endF =
 			module.getFunctionList().end(); curF != endF; ++curF) {
 		string fn = curF->getName();
@@ -177,7 +180,7 @@ void updateVisitedBasicBlocks(Module &module, set<BasicBlock> &visitedBbs) {
 				if (CallInst *callSite = dyn_cast<CallInst>(I)) {
 					if (callSite->getCalledFunction()
 							&& callSite->getCalledFunction()->getName()
-							== "klee_dump_memory") {
+									== "klee_dump_memory") {
 						goto updateBB;
 					}
 				}
@@ -193,9 +196,9 @@ void updateVisitedBasicBlocks(Module &module, set<BasicBlock> &visitedBbs) {
 void handleGlobalVariables(Module &module, map<Global, uint64_t> &globals) {
 	outs() << "Run handleGlobalVariables\n";
 	set<BasicBlock> visitedBbs = populateBasicBlocks();
-	//	updateVisitedBasicBlocks(module, visitedBbs);
+//	updateVisitedBasicBlocks(module, visitedBbs);
 
-	// identify globals in this module and delete the rest
+// identify globals in this module and delete the rest
 	for (auto it = globals.cbegin(); it != globals.cend();) {
 		if (module.getGlobalVariable(it->first, true))
 			++it;
@@ -214,39 +217,7 @@ void handleGlobalVariables(Module &module, map<Global, uint64_t> &globals) {
 		}
 	}
 
-	// identify globals that cannot be made constant
-	/*
-	 for (auto curF = module.getFunctionList().begin(), endF =
-	 module.getFunctionList().end(); curF != endF; ++curF) {
-	 string fn = curF->getName();
-	 uint32_t bbnum = 0;
-	 for (auto curB = curF->begin(), endB = curF->end(); curB != endB;
-	 ++curB, ++bbnum) {
-	 if (visitedBbs.find(BasicBlock(fn, bbnum)) != visitedBbs.end()) {
-	 continue;
-	 }
-	 auto curI = curB->begin(), endI = curB->end();
-	 while (curI != endI) {
-	 auto si = dyn_cast<StoreInst>(&(*curI));
-	 ++curI;
-	 if (!si)
-	 continue;
-	 if (GlobalVariable *gvar = dyn_cast<GlobalVariable>(
-	 si->getPointerOperand())) {
-	 auto it = globals.find(gvar->getName());
-	 if (it != globals.end()) {
-	 globals.erase(it);
-	 }
-	 }
-	 }
-	 }
-	 }
-	 llvm::outs() << "Remaind Variables After 2nd iteration\n";
-	 for (auto &&kv : globals) {
-	 errs() << kv.first << " " << kv.second << "\n";
-	 }*/
 	map<Global, uint64_t> newGlobals;
-
 	for (auto curF = module.getFunctionList().begin();
 			curF != module.getFunctionList().end(); curF++) {
 		string fn = curF->getName();
@@ -273,34 +244,13 @@ void handleGlobalVariables(Module &module, map<Global, uint64_t> &globals) {
 				}
 			}
 		}
-		/*uint32_t bbnum = 0;
-		 for (auto curB = curF->begin(), endB = curF->end(); curB != endB;
-		 ++curB, ++bbnum) {
-		 if (visitedBbs.find(BasicBlock(fn, bbnum)) != visitedBbs.end()) {
-		 continue;
-		 }
-		 auto curI = curB->begin(), endI = curB->end();
-		 while (curI != endI) {
-		 auto si = dyn_cast<StoreInst>(&(*curI));
-		 ++curI;
-		 if (!si)
-		 continue;
-		 if (GlobalVariable *gvar = dyn_cast<GlobalVariable>(
-		 si->getPointerOperand())) {
-		 auto it = globals.find(gvar->getName());
-		 if (it != globals.end()) {
-		 globals.erase(it);
-		 }
-		 }
-		 }
-		 }*/
 	}
 	llvm::outs() << "Remaind Variables After 2nd iteration\n";
 	for (auto &&kv : newGlobals) {
 		errs() << kv.first << " " << kv.second << "\n";
 	}
 
-	// make remaining globals constant
+// make remaining globals constant
 	for (auto curF = module.getFunctionList().begin(), endF =
 			module.getFunctionList().end(); curF != endF; ++curF) {
 		string fn = curF->getName();
@@ -337,61 +287,131 @@ void handleGlobalVariables(Module &module, map<Global, uint64_t> &globals) {
 			}
 		}
 	}
-
-	/*
-	 std::vector<Instruction*> instList;
-	 for (auto curF = module.getFunctionList().begin();
-	 curF != module.getFunctionList().end(); curF++) {
-	 auto name = curF->getName();
-	 if (name == "main") {
-	 for (auto curB = curF->begin(); curB != curF->end(); curB++) {
-	 for (auto curI = curB->begin(); curI != curB->end(); curI++) {
-	 if (auto li = dyn_cast<LoadInst>(&(*curI))) {
-	 //						if (returnIndex(instList, li)
-	 //								< neckIndex(module, instList)) {
-	 if (GlobalVariable *gvar = dyn_cast<GlobalVariable>(
-	 li->getPointerOperand())) {
-	 auto it = globals.find(gvar->getName());
-	 if (it != globals.end()) {
-	 GlobalVariable *gvar =
-	 module.getGlobalVariable(it->first,
-	 true);
-	 assert(gvar);
-	 if (auto intType =
-	 dyn_cast<IntegerType>(
-	 gvar->getType()->getElementType())) {
-	 auto val = llvm::ConstantInt::get(
-	 intType, it->second);
-	 llvm::outs() << "\tFOUND: " << it->first
-	 << " :: " << it->second
-	 << " :: " << *curI << "\n";
-	 ReplaceInstWithValue(
-	 curB->getInstList(), curI, val);
-	 }
-	 }
-	 }
-	 //						}
-	 }
-	 }
-	 }
-	 }
-	 }*/
 }
 
-string localVariableName(Module &module, map<Global, uint64_t> &locals){
+map<uint64_t, Instruction*> getAllInstr(Module &module) {
+	map<uint64_t, Instruction*> insts;
+	for (auto curF = module.getFunctionList().begin(), endF =
+			module.getFunctionList().end(); curF != endF; ++curF) {
+		string fn = curF->getName();
+		if (fn == "main") {
+			uint64_t i = 0;
+			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
+				for (auto curI = curB->begin(); curI != curB->end();
+						curI++, i++) {
+					Instruction *inst = &*curI;
+					insts.emplace(i, inst);
+				}
+			}
+		}
+	}
+	return insts;
+}
 
-	return "";
+/*1- Check getelementptr instructions after the neck
+ *2- check if the same struct name and same element index
+ *3- If all are matching, then check all uses of the getelementptr and store them
+ *in a vector.
+ *4- if all use instructions are load, then we can convert them into constants
+ */
+void replaceLocalStructUsesAfterNeck(Module &module,
+		map<GetElementPtrInst*, uint64_t> structToIdx,
+		std::vector<Instruction*> instList, map<Global, uint64_t> &locals) {
+	for (auto srctGep : structToIdx) {
+
+		auto srctGepType = dyn_cast<PointerType>(
+				(srctGep.first)->getOperand(0)->getType());
+		auto srctGepTypeStrct = dyn_cast<StructType>(
+				srctGepType->getElementType());
+
+		outs() << "***" << *srctGepTypeStrct << "\n";
+
+		std::vector<LoadInst*> loadInstUseGep;
+
+		bool isThereStoreInst = 0;
+
+		for (auto curF = module.getFunctionList().begin();
+				curF != module.getFunctionList().end(); curF++) {
+			string fn = curF->getName();
+			if (fn == "main")
+				for (auto curB = curF->begin(); curB != curF->end(); curB++) {
+					for (auto curI = curB->begin(); curI != curB->end();
+							curI++) {
+						if (auto gep = dyn_cast<llvm::GetElementPtrInst>(
+								curI)) {
+							if (returnIndex(instList, gep)
+									> neckIndex(module, instList)) {
+								auto opr0Type = dyn_cast<PointerType>(
+										gep->getOperand(0)->getType());
+								auto opr0Instr = dyn_cast<AllocaInst>(
+										gep->getOperand(0));
+								if (opr0Type && opr0Instr)
+									if (auto pt = dyn_cast<StructType>(
+											opr0Type->getElementType()))
+										if (pt->getStructName()
+												== srctGepTypeStrct->getStructName()
+												&& gep->getNumOperands()
+														== srctGep.first->getNumOperands()
+												&& gep->getOperand(2)
+														== srctGep.first->getOperand(
+																2)) {
+											outs() << "GEP: " << *gep
+													<< "---Oprds: "
+													<< gep->getNumOperands()
+													<< "\n";
+											outs() << "GEP_Opr3: "
+													<< *gep->getOperand(2)
+													<< "\n";
+											for (auto i : gep->users()) {
+												if (isa<StoreInst>(i)) {
+													isThereStoreInst = 1;
+													break;
+												} else if (auto ld = dyn_cast<
+														LoadInst>(i)) {
+													loadInstUseGep.push_back(
+															ld);
+												}
+											}
+										}
+							}
+						}
+					}
+				}
+		}
+
+		//if all loadinstr, then I can perform constant conversion
+		if (!isThereStoreInst) {
+			for (auto ld : loadInstUseGep) {
+				outs() << "***Replacing Load Intructions...\n";
+				outs() << "getPointerOperand: " << *ld->getOperand(0)->getType()
+						<< "\n";
+				auto constVal = locals.find(std::to_string(srctGep.second));
+				if (constVal != locals.end()) {
+					if (auto intType = dyn_cast<IntegerType>(
+							ld->getPointerOperand()->getType()->getPointerElementType())) {
+						auto val = llvm::ConstantInt::get(intType,
+								constVal->second);
+						outs() << "\t****FOUND CONST INST\n";
+						outs() << "Obtain BB:: " << ld->getParent()->getInstList().size() << "\n";
+						outs() << "intType:  " << *intType << "\n";
+						ReplaceInstWithValue(ld->getParent()->getInstList(), ld, val);
+					}
+				}
+			}
+		}
+	}
 }
 
 void handleLocalVariables(Module &module, map<Global, uint64_t> &locals) {
 	outs() << "Run handleLocalVariables\n";
 	set<BasicBlock> visitedBbs = populateBasicBlocks();
 	map<llvm::AllocaInst*, uint64_t> instrToIdx;
+	map<GetElementPtrInst*, uint64_t> structToIdx;
 	std::vector<Instruction*> instList;
 
-	map<llvm::AllocaInst*, std::string> instrToVarName;
+	map<uint64_t, Instruction*> mapIdxInst = getAllInstr(module);
 
-	outs() << "instList size:" << instList.size() << "\n";
+	map<llvm::AllocaInst*, std::string> instrToVarName;
 
 	outs() << "Find list of matching instructions that have index in locals.\n";
 	for (auto curF = module.getFunctionList().begin(), endF =
@@ -400,233 +420,77 @@ void handleLocalVariables(Module &module, map<Global, uint64_t> &locals) {
 		//the assumption is that majority of the analysis on the local variables
 		//should be conducted inside the main, this where the neck is
 		if (fn == "main") {
-			//			outs() << "Found main method\n";
-
 			//Get mapping between allocation instruction and its index in the locals file
 			//this step is necessary to identify the corresponding value to each local variable
 			//local variables are alloca instructions
+			//I also need to consider struct variables, because I noticed they are used in the coreutils
+			//Therefore, I need to consider getelementptr because this instr points the struct variable
+			//I noticed the index of instructions isn't a reliable approach, because in the LLVM pass we consider the entire
+			//bitcode, but KLEE interpreter doesn't maintain the order of the instructions
+			//one hack I found, in KLEE there is no 2 consecutive br instructions
+			//Therefore, I when I reach a branch instr:
+			//1- check if there is a br instr before it
+			//2- if so, reduce i by one
 			uint64_t i = 0;
 			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
-				for (auto curI = curB->begin(); curI != curB->end(); curI++) {
+				for (auto curI = curB->begin(); curI != curB->end(); ++curI) {
+					//to keep the index i consistent and matching the one in KLEE
+					//outs() <<"i: " << i << " --- " << *curI<< "\n";
+					if (auto br = dyn_cast<BranchInst>(&*curI)) {
+						//check if the previous instr is br
+						auto inst = mapIdxInst.find(i - 1);
+						if (inst != mapIdxInst.end()
+								&& isa<BranchInst>(inst->second)) {
+							//outs() << "****Found TWO Branches\n";
+							--i;
+						}
+					}
+
 					auto id = locals.find(std::to_string(i));
 					if (auto al = dyn_cast<llvm::AllocaInst>(curI)) {
 						if (id != locals.end())
 							instrToIdx.emplace(cast<llvm::AllocaInst>(curI), i);
-
-						if(!al->hasName()){
+						//obtain the names of local variables, if applicable
+						if (!al->hasName()) {
 							outs() << *al << "\n";
-							for (auto I = curB->begin(); I != curB->end(); I++) {
-								if (DbgDeclareInst * dbg = dyn_cast<DbgDeclareInst>(&(*I))){
-									if (const AllocaInst* dbgAI = dyn_cast<AllocaInst>(dbg->getAddress()))
-										if (dbgAI == al){
-											if (DILocalVariable * varMD = dbg->getVariable()){
-												outs() << "VarName: " << varMD->getName().str() << "\n";
-												instrToVarName.emplace(cast<llvm::AllocaInst>(curI), varMD->getName().str());
+							for (auto I = curB->begin(); I != curB->end();
+									I++) {
+								if (DbgDeclareInst *dbg = dyn_cast<
+										DbgDeclareInst>(&(*I))) {
+									if (const AllocaInst *dbgAI = dyn_cast<
+											AllocaInst>(dbg->getAddress()))
+										if (dbgAI == al) {
+											if (DILocalVariable *varMD =
+													dbg->getVariable()) {
+												outs() << "VarName: "
+														<< varMD->getName().str()
+														<< "\n";
+												instrToVarName.emplace(
+														cast<llvm::AllocaInst>(
+																curI),
+														varMD->getName().str());
 											}
 										}
 								}
 							}
 						} else {
-							outs() << "NAME:: " <<al->getName() << "\n";
+							outs() << "NAME:: " << al->getName() << "\n";
 						}
-
+						//Local variable can be struct, and GetElementPtrInst is used to point to struct elements
+					} else if (auto gep = dyn_cast<GetElementPtrInst>(curI)) {
+						if (id != locals.end()) {
+							auto pt = dyn_cast<PointerType>(
+									gep->getOperand(0)->getType());
+							if (pt && isa<StructType>(pt->getElementType()))
+								structToIdx.emplace(gep, i);
+						}
 					}
 					i++;
 				}
 			}
 		}
 	}
-	/*
-	outs() << "Found locals\n";
-	for (auto t : instrToIdx) {
-		llvm: outs() << "LIST: " << *t.first << " --- " << t.second << "\n";
-		for (Value::use_iterator ui = t.first->use_begin();
-				ui != t.first->use_end(); ui++) {
-			llvm::outs() << "\tuse:: " << *ui->getUser() << "\n";
-			if (auto si = dyn_cast<llvm::StoreInst>(ui->getUser())) {
-//				 outs() << "\t\t1st opr: " << *si->getOperand(0) << "\n";
-				if (isa<ConstantInt>(si->getOperand(0))) {
-					outs() << "\t\tFound Const value: " << *si->getOperand(0)
-							<< "  Type:: " << *si->getOperand(0)->getType()
-							<< "\n";
-				}
-			}
-		}
-	}
-	 */
 
-	/*
-	 outs() << "Filter the locals map\n";
-	 for (auto curF = module.getFunctionList().begin(),endF = module.getFunctionList().end(); curF != endF; ++curF) {
-	 string fn = curF->getName();
-	 if (fn == "main"){
-	 for (auto curB = curF->begin(); curB != curF->end(); curB++){
-	 for (auto curI = curB->begin(); curI != curB->end(); curI++){
-	 //use-iterator can be used to iterate all use of the local variables. Then we can use
-	 //use-iterator and users iteration yield the same results
-	 if (auto allc = dyn_cast<llvm::AllocaInst>(curI)){
-	 //							llvm::outs() << "allcInst:: " <<*allc << "\n";
-	 auto it = instrToIdx.find(allc);
-	 //if the intruction in the list of local variables
-	 if (it != instrToIdx.end()){
-	 //iterate the users of the local variable
-	 for (llvm::Value::use_iterator ui = curI->use_begin(); ui != curI->use_end(); ui++){
-	 //									llvm::outs() << "use:: " << *ui->getUser()<<"\n";
-	 //find the index of the instruction to check if before or after neck,
-	 //if after erase the record from instrToIdx and locals
-	 if(auto si = dyn_cast<llvm::StoreInst>(ui->getUser())){
-	 uint32_t elem = returnIndex(instList, si);
-	 if (elem != -1 && elem > neckIdx){
-	 auto loc = locals.find(std::to_string(it->second));
-	 if(loc != locals.end()){
-	 locals.erase(loc);
-	 instrToIdx.erase(it);
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }*/
-
-	/*
-	 outs()<< "Found instructions and their indices\n";
-	 for (auto t : instrToIdx){
-	 auto it = locals.find(std::to_string(t.second));
-	 if (it != locals.end())
-	 llvm:outs() << "LIST: " << *t.first << " --- " << t.second<< "\n";
-	 }*/
-
-	/*
-	 // identify locals that cannot be made constant
-	 for (auto curF = module.getFunctionList().begin(),
-	 endF = module.getFunctionList().end();
-	 curF != endF; ++curF) {
-	 string fn = curF->getName();
-	 uint32_t bbnum = 0;
-	 if (fn == "main"){
-	 for (auto curB = curF->begin(), endB = curF->end(); curB != endB; ++curB, ++bbnum) {
-	 if (visitedBbs.find(BasicBlock(fn, bbnum)) != visitedBbs.end()){
-	 continue;
-	 }
-	 auto curI = curB->begin(), endI = curB->end();
-	 while (curI != endI) {
-	 auto si = dyn_cast<StoreInst>(&(*curI));
-	 ++curI;
-	 if (!si)
-	 continue;
-	 if (AllocaInst* lvar = dyn_cast<AllocaInst>(si->getPointerOperand())) {
-	 auto it = instrToIdx.find(lvar);
-	 if (it != instrToIdx.end()){
-	 auto loc = locals.find(std::to_string(it->second));
-	 if(loc != locals.end()){
-	 locals.erase(loc);
-	 instrToIdx.erase(it);
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }*/
-
-	/*
-	 outs()<< "After \n";
-	 for (auto t : instrToIdx){
-	 auto it = locals.find(std::to_string(t.second));
-	 if (it != locals.end())
-	 outs() << "LIST: " << *t.first << " --- " << t.second<< "\n";
-	 }*/
-
-	/*
-	 for (auto curF = module.getFunctionList().begin(),
-	 endF = module.getFunctionList().end();
-	 curF != endF; ++curF) {
-	 string fn = curF->getName();
-
-	 uint32_t bbnum = 0;
-	 for (auto curB = curF->begin(), endB = curF->end(); curB != endB; ++curB, ++bbnum) {
-	 if (visitedBbs.find(BasicBlock(fn, bbnum)) != visitedBbs.end())
-	 continue;
-	 auto curI = curB->begin(), endI = curB->end();
-	 while (curI != endI) {
-	 if (auto li = dyn_cast<LoadInst>(&(*curI))) {
-	 if (AllocaInst* lvar = dyn_cast<AllocaInst>(li->getPointerOperand())) {
-	 auto inst = instrToIdx.find(lvar);
-	 if (inst != instrToIdx.end()){
-	 auto constVal = locals.find(std::to_string(inst->second));
-	 if (constVal != locals.end()){
-	 if(auto intType = dyn_cast<IntegerType>(lvar->getType()->getElementType())){
-	 auto val = llvm::ConstantInt::get(intType, constVal->second);
-	 llvm::outs() << "REPLACED DONE.. \n";
-	 llvm::outs() << "\tFOUND: "<<  *inst->first << " :: " << inst->second << " :: " << *curI <<"\n";
-	 ReplaceInstWithValue(curB->getInstList(), curI, val);
-	 outs() << "\tAfter Replace: " << *curI << "\n";
-	 }
-	 }
-	 }
-	 }
-	 }
-	 ++curI;
-	 }
-	 }
-	 }*/
-
-	//convert to constant
-	/*
-	 for (auto curF = module.getFunctionList().begin(),endF = module.getFunctionList().end(); curF != endF; ++curF) {
-	 string fn = curF->getName();
-	 if (fn == "main"){
-	 outs()<< "Start Converting to constant\n";
-	 for (auto curB = curF->begin(); curB != curF->end(); curB++){
-	 for (auto curI = curB->begin(); curI != curB->end(); curI++){
-	 if (auto ld = dyn_cast<llvm::LoadInst>(curI)){
-	 if (returnIndex(instList, ld) < neckIdx)//{}
-	 if(auto opr = dyn_cast<llvm::AllocaInst>(ld->getPointerOperand())){
-	 //here I need to check the mapping list of local variables and their values
-	 auto inst = instrToIdx.find(opr);
-	 if (inst != instrToIdx.end()){
-	 auto constVal = locals.find(std::to_string(inst->second));
-	 if (constVal != locals.end()){
-	 if(auto intType = dyn_cast<IntegerType>(opr->getType()->getElementType())){
-	 auto val = llvm::ConstantInt::get(intType, constVal->second);
-	 llvm::outs() << "REPLACED DONE.. \n";
-	 llvm::outs() << "\tFOUND: "<<  *inst->first << " :: " << inst->second << " :: " << *curI <<"\n";
-	 ReplaceInstWithValue(curB->getInstList(), curI, val);
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }
-	 }*/
-
-
-	//testing code
-	/*
-	for (auto curF = module.getFunctionList().begin(); curF != module.getFunctionList().end(); curF++){
-		for (auto curB = curF->begin(); curB != curF->end(); curB++){
-			for (auto curI = curB->begin(); curI != curB->end(); curI++){
-				if (auto inst = dyn_cast<llvm::GetElementPtrInst>(curI)){
-					outs() << "Instr: " << *inst << " --Oprnds: " << inst->getNumOperands()<< "\n";
-					for (User::value_op_iterator B = curI->value_op_begin(); B != curI->value_op_end(); B++){
-						outs() << "\tuser: " << *B->getType() <<"\n";
-						if (auto al = dyn_cast<llvm::AllocaInst>(*B)){
-							outs() << "\t\talloc:: " << *al << "\n";
-						}
-					}
-				}
-			}
-		}
-	}*/
-
-
-	//check if variable has uses after the neck
 	for (auto curF = module.getFunctionList().begin(), endF =
 			module.getFunctionList().end(); curF != endF; ++curF) {
 		string fn = curF->getName();
@@ -641,12 +505,12 @@ void handleLocalVariables(Module &module, map<Global, uint64_t> &locals) {
 								< neckIndex(module, instList))//do the conversion till the neck
 							if (auto opr = dyn_cast<llvm::AllocaInst>(
 									ld->getPointerOperand())) {
-								//I need to remove some local variables like argc
+								//I need to ignore some local variables like argc, because the number of arguments will be
+								//different after running the specalized apps. So argc variable should be delayed
 								auto varName = instrToVarName.find(opr);
 								if (varName != instrToVarName.end())
 									if (varName->second == "argc")
 										continue;
-
 
 								//here I need to check the mapping list of local variables and their values
 								auto inst = instrToIdx.find(opr);
@@ -664,8 +528,9 @@ void handleLocalVariables(Module &module, map<Global, uint64_t> &locals) {
 													<< *inst->first << " :: "
 													<< inst->second << " :: "
 													<< *curI << "\n";
+											outs() << "intType: "<< *intType << "\n";
 											ReplaceInstWithValue(
-													curB->getInstList(), curI,
+													curI->getParent()->getInstList(), curI,
 													val);
 										}
 									}
@@ -694,7 +559,7 @@ void handleLocalVariables(Module &module, map<Global, uint64_t> &locals) {
 																intType,
 																constVal->second);
 												llvm::outs()
-												<< "\nSI replace.. \n";
+														<< "\nSI replace.. \n";
 												llvm::outs() << "\tFOUND: "
 														<< *inst->first
 														<< " :: "
@@ -716,40 +581,87 @@ void handleLocalVariables(Module &module, map<Global, uint64_t> &locals) {
 								}
 						}
 					}
-					//I need to decide which operand that will be the allocate instr (I noticed I need to check only operand 0)
-					/*else if (auto gep = dyn_cast<llvm::GetElementPtrInst>(curI)) {
-							if (auto opr = dyn_cast<llvm::AllocaInst>(gep->getOperand(0))){
-								auto inst = instrToIdx.find(opr);
-								if (inst != instrToIdx.end()) {
-									auto constVal = locals.find(
-											std::to_string(inst->second));
-									if (constVal != locals.end()) {
-										if (auto intType =
-												dyn_cast<IntegerType>(
-														opr->getType()->getElementType())) {
-											auto val =
-													llvm::ConstantInt::get(
-															intType,
-															constVal->second);
-											llvm::outs() << "\nGEP replace.. \n";
-											llvm::outs() << "\tFOUND: " << *inst->first << " :: "
-													<< inst->second
-													<< " :: " << *curI
-													<< "\n";
-											//here I need to create a GEP instr and then replace it
-											if (gep->getNumOperands() == 2)
-												GetElementPtrInst* newGEP = new GetElementPtrInst()
-											outs() << "\tAfter conv: "
-													<< *curI << "\n";
+
+					/* I need to decide which operand that will be the allocate instr (I noticed I need to check only operand 0)
+					 * I need to do it now to handle only structs, when GetElementPtrInst is used to compute the address of struct
+					 * the number of arguments is 4. getelementptr t* %val, t1 idx1, t2 idx2
+					 */
+					else if (auto gep = dyn_cast<llvm::GetElementPtrInst>(
+							curI)) {
+						if (returnIndex(instList, gep)
+								< neckIndex(module, instList)) {
+
+							//the 1st operand should be pointing to a local variable (AllocInstr)
+							auto opr0Type = dyn_cast<PointerType>(
+									gep->getOperand(0)->getType());
+							auto opr0Instr = dyn_cast<AllocaInst>(
+									gep->getOperand(0));
+
+							if (opr0Type && opr0Instr) {
+								if (auto pt = dyn_cast<StructType>(
+										opr0Type->getElementType())) {
+									//find if the struct points to the captured struct  local variables (structToIdx)
+									auto it = structToIdx.find(gep);
+									if (it != structToIdx.end()) {
+										/*outs() << "INSTR: " << *curI
+										 << " --NumUsers: "
+										 << curI->getNumUses()
+										 << " --NumOperands: "
+										 << curI->getNumOperands()
+										 << "\n";*/
+										outs()
+												<< "\t\tFOUND struct points to a local variable.: "
+												<< pt->getStructName() << "\n";
+
+										auto constVal = locals.find(
+												std::to_string(it->second));
+										if (constVal != locals.end()) {
+											//I need to check if this stuct element wasn't modified after the neck (only loads), then
+											//I need to convert to constVal.
+											//Usually, there is load or store after the getelementptr
+											for (auto i : gep->users()) {
+												outs() << "\tuser: " << *i
+														<< "\n";
+												//if load
+
+												//if store
+												if (auto si =
+														dyn_cast<StoreInst>(
+																i)) {
+													if (auto ci = dyn_cast<
+															ConstantInt>(
+															si->getOperand(
+																	0))) {
+														auto val =
+																llvm::ConstantInt::get(
+																		si->getOperand(
+																				0)->getType(),
+																		constVal->second);
+
+														llvm::outs()
+																<< "\nSI replace.. \n";
+
+														StoreInst *str =
+																new StoreInst(
+																		val,
+																		si->getOperand(
+																				1));
+														ReplaceInstWithInst(si,
+																str);
+													}
+												}
+											}
 										}
 									}
 								}
 							}
-						}*/
+						}
+					}
 				}
 			}
 		}
 	}
+	replaceLocalStructUsesAfterNeck(module, structToIdx, instList, locals);
 }
 
 //This method removes unused local/global variables and functions
@@ -758,7 +670,7 @@ void cleaningUp(Module &module) {
 	std::vector<GlobalVariable*> gblVarsToBeRemoved;
 	std::vector<Instruction*> localVarsToBeRemoved;
 	std::vector<Instruction*> storeInstToBeRemoved;
-	//identify uses of a function, if it's zero then remove the function
+//identify uses of a function, if it's zero then remove the function
 	for (auto curF = module.getFunctionList().begin();
 			curF != module.getFunctionList().end(); curF++) {
 		if (curF->getName() != "main") {
@@ -768,11 +680,11 @@ void cleaningUp(Module &module) {
 		}
 	}
 
-	//loop over local vars in the functions that won't be removed
+//loop over local vars in the functions that won't be removed
 	for (auto curF = module.getFunctionList().begin();
 			curF != module.getFunctionList().end(); curF++) {
 		if (std::find(funcToBeRemoved.begin(), funcToBeRemoved.end(), &*curF)
-		!= funcToBeRemoved.end()) {
+				!= funcToBeRemoved.end()) {
 			continue;
 		} else {
 			//				outs() << "FuncName: " << curF->getName() << "\n";
@@ -801,12 +713,12 @@ void cleaningUp(Module &module) {
 
 	for (auto curG = module.getGlobalList().begin();
 			curG != module.getGlobalList().end(); curG++) {
-		//		outs() << "gblName: " << curG->getName() << " NumUses= " << curG->getNumUses() << "\n";
+//		outs() << "gblName: " << curG->getName() << " NumUses= " << curG->getNumUses() << "\n";
 		if (curG->getNumUses() == 0)
 			gblVarsToBeRemoved.push_back(&*curG);
 	}
 
-	///the following 4 for-loops remove the identified unused variables and functions
+///the following 4 for-loops remove the identified unused variables and functions
 	for (auto f : funcToBeRemoved) {
 		f->eraseFromParent();
 	}
@@ -827,21 +739,6 @@ void cleaningUp(Module &module) {
 	for (auto l : localVarsToBeRemoved) {
 		l->eraseFromParent();
 	}
-
-	//testing code for value_op_iterator
-	/*
-	for (auto curF = module.getFunctionList().begin(); curF != module.getFunctionList().end(); curF++){
-		for (auto curB = curF->begin(); curB != curF->end(); curB++){
-			for (auto curI = curB->begin(); curI != curB->end(); curI++){
-				outs() << "INSTR: " << *curI << " --NumUsers: " << curI->getNumUses() << " --NumOperands: " << curI->getNumOperands()<<"\n";
-
-				for (User::value_op_iterator B = curI->value_op_begin(); B != curI->value_op_end(); B++){
-					outs() << "\tuser: " << *B->getType() <<"\n";
-				}
-			}
-		}
-	}*/
-
 }
 
 void handlePredicates(Module &module) {
@@ -910,7 +807,7 @@ void handlePredicates(Module &module) {
 struct Debloat: public ModulePass {
 	static char ID; // Pass identification, replacement for typeid
 	Debloat() :
-		ModulePass(ID) {
+			ModulePass(ID) {
 	}
 
 	bool runOnModule(Module &module) override {
@@ -941,49 +838,3 @@ struct Debloat: public ModulePass {
 
 char Debloat::ID = 0;
 static RegisterPass<Debloat> X("debloat", "Debloat Pass");
-
-/*iterates the operands of curI
- llvm::outs() << "INSTR:: " << *curI <<"\n";
- for(llvm::User::op_iterator i = curI->op_begin(); i != curI->op_end(); i++){
- llvm::outs() << "op_user: "<< *i->get() <<"\n";
- }
- */
-
-/*iterates the instructions that use ui
- * for (llvm::Value::use_iterator ui = curI->use_begin(); ui != curI->use_end(); ui++){
- *
- * }
- * OR
- * for(auto i : alloc->users()){
- llvm::outs() << "USERS:: " << *i << "\n";
- }
- */
-
-/*
- * count number of instructions in a function
- * unsigned int instCount = 0;
- for (const llvm::BasicBlock &bb : curF->getFunction()){
- instCount += std::distance(bb.begin(), bb.end());
- }
- llvm::outs() << "InstNum:: "<<instCount << "\n";
- */
-
-/*
- if(auto st = dyn_cast<llvm::StoreInst>(curI)){
- llvm::outs() << "st: " << *st << " :Opr= " << *st->getOperand(0)->getType() <<"\n";
- if(auto opr = dyn_cast<llvm::AllocaInst>(st->getOperand(1))){
- auto inst = indexToInstr.find(opr);
- if (inst != indexToInstr.end()){
- auto constVal = locals.find(std::to_string(inst->second));
- if (constVal != locals.end()){
- if(auto intType = st->getOperand(0)->getType()){
- auto val = llvm::ConstantInt::get(intType, constVal->second);
- llvm::outs() << "REPLACED DONE.. \n";
- llvm::outs() << "FOUND: "<<  *inst->first << " :: " << inst->second << " :: " << constVal->first <<"\n";
- ReplaceInstWithValue(curB->getInstList(), curI, val);
- }
- }
- }
- }
- }
- */
