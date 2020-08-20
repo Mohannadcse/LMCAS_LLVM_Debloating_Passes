@@ -394,7 +394,9 @@ void replaceLocalStructUsesAfterNeck(Module &module,
 						outs() << "\t****FOUND CONST INST\n";
 						outs() << "Obtain BB:: " << ld->getParent()->getInstList().size() << "\n";
 						outs() << "intType:  " << *intType << "\n";
-						ReplaceInstWithValue(ld->getParent()->getInstList(), ld, val);
+//						ReplaceInstWithValue(ld->getParent()->getInstList(), &*ld, val);
+						ld->replaceAllUsesWith(val);
+						ld->eraseFromParent();
 					}
 				}
 			}

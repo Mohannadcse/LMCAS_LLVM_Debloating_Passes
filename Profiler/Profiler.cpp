@@ -524,16 +524,16 @@ void ProfilerPass::printCountersCSV(Module& M) {
 	std::ifstream ofs_check(filename);
 	ofs.open(filename, std::ofstream::out | std::ofstream::app);
 	if (!ofs_check.good()) {
-		ofs << "AppName,Pass,TotalFunc,TotalBBs,TotalInstr,Size\n";
+		ofs << "AppName,Pass,TotalInstr,TotalFunc,TotalBBs,Size\n";
 	}
 	if(AppSize != ""){
 		auto id = M.getModuleIdentifier();
 		std::vector<std::string> vec = splitString(id, '_');
 		ofs << vec[0] << ",";
 		ofs << vec[1].substr(0, vec[1].find(".")) << ",";
+		ofs << TotalInsts.Value << ",";
 		ofs << TotalFuncs.Value << ",";
 		ofs << TotalBlocks.Value << ",";
-		ofs << TotalInsts.Value << ",";
 		ofs << AppSize <<"\n";
 	} else{
 		outs() << "ERROR: the size is empty\n";
