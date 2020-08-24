@@ -1,6 +1,11 @@
 set (CMAKE_CXX_STANDARD 11)
 add_library(LLVMDebloat MODULE
   Debloat.cpp
+  GlobalVariables.cpp
+  LocalVariables.cpp
+  Utility.cpp
+  CleaningUpStuff.cpp
+  Predicates.cpp
 )
 
 target_compile_features(LLVMDebloat PRIVATE cxx_range_for cxx_auto_type)
