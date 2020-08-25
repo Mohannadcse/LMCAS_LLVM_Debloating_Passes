@@ -7,10 +7,12 @@
 
 #include "GlobalVariables.h"
 
+
 //typedef pair<string, uint64_t> BasicBlocks;
 
-void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t> &globals, set<pair<string, uint64_t>> visitedBbs) {
-	outs() << "Run handleGlobalVariables\n";
+void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t> &globals,
+		set<pair<string, uint64_t>> visitedBbs) {
+	logger << "\nRun handleGlobalVariables\n";
 	//set<BasicBlock> visitedBbs = populateBasicBlocks();
 //	updateVisitedBasicBlocks(module, visitedBbs);
 
@@ -23,12 +25,12 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 		}
 	}
 
-	llvm::outs() << "Remaind Variables After 1st iteration\n";
+	logger << "Remaind Variables After 1st iteration\n";
 	for (auto &&kv : globals) {
 		errs() << kv.first << " " << kv.second << "\n";
 		auto it = globals.find("optind");
 		if (it != globals.end()) {
-			outs() << "Remove optind" << "\n";
+			logger << "Remove optind" << "\n";
 			globals.erase(it);
 		}
 	}
@@ -61,7 +63,7 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 			}
 		}
 	}
-	llvm::outs() << "Remaind Variables After 2nd iteration\n";
+	logger << "Remaind Variables After 2nd iteration\n";
 	for (auto &&kv : newGlobals) {
 		errs() << kv.first << " " << kv.second << "\n";
 	}
@@ -90,7 +92,7 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 									gvar->getType()->getElementType())) {
 								auto val = ConstantInt::get(intType,
 										it->second);
-								//								llvm::outs() << "\tFOUND: " << it->first
+								//								logger << "\tFOUND: " << it->first
 								//																				<< " :: " << it->second
 								//																				<< " :: " << *curI << "\n";
 								ReplaceInstWithValue(curB->getInstList(), curI,

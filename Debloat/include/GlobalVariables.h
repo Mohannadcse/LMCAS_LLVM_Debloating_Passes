@@ -5,8 +5,8 @@
  *      Author: ma481
  */
 
-#ifndef SOURCE_DIRECTORY__DEBLOAT_GLOBALVARIABLES_H_
-#define SOURCE_DIRECTORY__DEBLOAT_GLOBALVARIABLES_H_
+#ifndef SOURCE_DIRECTORY__DEBLOAT_INCLUDE_GLOBALVARIABLES_H_
+#define SOURCE_DIRECTORY__DEBLOAT_INCLUDE_GLOBALVARIABLES_H_
 
 
 #include "llvm/IR/Module.h"
@@ -28,11 +28,17 @@ using namespace std;
 //typedef pair<string, uint64_t> BasicBlocks;
 
 class GlobalVariables{
+private:
+	ofstream logger;
+
 public:
 	void handleGlobalVariables(Module &module, map<string, uint64_t> &globals, set<pair<string, uint64_t>> visitedBbs);
+	GlobalVariables(){
+		logger.open("logger.txt", ofstream::app);
+	}
 };
 
 
 
 
-#endif /* SOURCE_DIRECTORY__DEBLOAT_GLOBALVARIABLES_H_ */
+#endif /* SOURCE_DIRECTORY__DEBLOAT_INCLUDE_GLOBALVARIABLES_H_ */

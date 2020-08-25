@@ -1,16 +1,3 @@
-//===- Hello.cpp - Example code from "Writing an LLVM Pass" ---------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This file implements two versions of the LLVM "Hello World" pass described
-// in docs/WritingAnLLVMPass.html
-//
-//===----------------------------------------------------------------------===//
-
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
@@ -34,18 +21,10 @@
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm-c/ExecutionEngine.h"
 
-#include "LocalVariables.h"
-#include "GlobalVariables.h"
 #include "CleaningUpStuff.h"
+#include "GlobalVariables.h"
+#include "LocalVariables.h"
 #include "Predicates.h"
-#include "Utility.h"
-
-#include <map>
-#include <set>
-#include <string>
-#include <fstream>
-#include <cassert>
-#include <vector>
 
 using namespace llvm;
 using namespace std;
@@ -130,7 +109,6 @@ map <pair<std::string, uint64_t>, uint64_t> populateCustomizedLocals() {
 			structName = tmpVect[0];
 			structElem = strtoul(tmpVect[1].c_str(), nullptr, 10);
 			value = strtoul(tmpVect[2].c_str(), nullptr, 10);
-			outs() << "struct_Vect: " << structName << " $$ " << structElem << " $$ " << value << "\n";
 			ret.emplace(make_pair(structName, structElem), value);
 		}
 	}
@@ -181,6 +159,7 @@ struct Debloat: public ModulePass {
 		map<string, uint64_t> plocals = populatePrimitiveLocals();
 		map <pair<std::string, uint64_t>, uint64_t> clocals = populateCustomizedLocals();
 
+
 		if (globals.size() != 0) {
 			GlobalVariables gv;
 			gv.handleGlobalVariables(module, globals, visitedBbs);
@@ -188,14 +167,14 @@ struct Debloat: public ModulePass {
 
 		if (plocals.size() != 0) {
 			LocalVariables lv;
-			outs() << "Sizeof Primitive Locals: " << plocals.size() << "\n";
+			outs() << "\nSizeof Primitive Locals: " << plocals.size() << "\n";
 			lv.handlePrimitiveLocalVariables(module, plocals);
 		}
 
 		if (clocals.size() != 0){
 			LocalVariables lv;
-			outs() << "Sizeof Customized Locals: " << clocals.size() << "\n";
-			lv.handleCustomizedLocalVariables(module, clocals);
+			outs() << "\nSizeof Customized Locals: " << clocals.size() << "\n";
+			//lv.handleCustomizedLocalVariables(module, clocals);
 
 		}
 

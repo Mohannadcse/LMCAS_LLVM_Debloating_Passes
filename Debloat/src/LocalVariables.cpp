@@ -19,7 +19,7 @@ int returnIndex(std::vector<Instruction*> list, Instruction *inst) {
 uint32_t neckIndex(Module &module, std::vector<Instruction*> &instList) {
 	instList.clear();
 	uint32_t neckIdx = 0;
-	//	outs() << "Find the index of the Neck\n";
+	//	strLogger << "Find the index of the Neck\n";
 	for (auto curF = module.getFunctionList().begin(), endF =
 			module.getFunctionList().end(); curF != endF; ++curF) {
 		string fn = curF->getName();
@@ -35,7 +35,7 @@ uint32_t neckIndex(Module &module, std::vector<Instruction*> &instList) {
 						if (cs->getCalledFunction()->getName()
 								== "klee_dump_memory") {
 							neckIdx = i;
-							//outs() << "Neck Found@: " << neckIdx << "---Size: " << instList.size() << "\n";
+							//strLogger << "Neck Found@: " << neckIdx << "---Size: " << instList.size() << "\n";
 							return neckIdx;
 						}
 					}
@@ -68,8 +68,12 @@ bool processGepInstr(llvm::GetElementPtrInst *gep,
  *4- if all use instructions are load, then we can convert them into constants
  */
 void LocalVariables::replaceLocalStructUsesAfterNeck(Module &module,
-		map<pair<std::string, uint64_t>, uint64_t> &clocals,
+		map<pair<string, uint64_t>, uint64_t> &clocals,
 		vector<Instruction*> instList) {
+
+	string str;
+	raw_string_ostream strLogger(str);
+
 	for (auto srctGep : clocals) {
 		std::vector<LoadInst*> loadInstUseGep;
 
@@ -93,7 +97,7 @@ void LocalVariables::replaceLocalStructUsesAfterNeck(Module &module,
 										break;
 									} else if (auto ld = dyn_cast<LoadInst>(
 											i)) {
-										outs() << "GEP: " << *gep << "\n";
+										strLogger << "GEP: " << *gep << "\n";
 										loadInstUseGep.push_back(ld);
 									}
 								}
@@ -105,9 +109,9 @@ void LocalVariables::replaceLocalStructUsesAfterNeck(Module &module,
 
 		//if all loadinstr, then I can perform constant conversion
 		if (!isThereStoreInst) {
+			strLogger << "\n*****\nReplacing Load Intructions After neck (struct)...\n";
 			for (auto ld : loadInstUseGep) {
-				outs() << "*****\nReplacing Load Intructions After neck...\n";
-				outs() << "\tGEP: " << *ld << "\n";
+				strLogger << "\tGEP: " << *ld << "\n";
 				if (auto intType =
 						dyn_cast<IntegerType>(
 								ld->getPointerOperand()->getType()->getPointerElementType())) {
@@ -119,6 +123,7 @@ void LocalVariables::replaceLocalStructUsesAfterNeck(Module &module,
 			}
 		}
 	}
+	logger << strLogger.str();
 }
 
 /*
@@ -130,6 +135,10 @@ void LocalVariables::handleCustomizedLocalVariables(Module &module,
 		map<pair<std::string, uint64_t>, uint64_t> &clocals) {
 	std::vector<Instruction*> instList;
 
+	string str;
+	raw_string_ostream strLogger(str);
+
+	strLogger << "*****\nStart Converting struct locals to constant\n";
 	for (auto elem : clocals) {
 		for (auto curF = module.getFunctionList().begin();
 				curF != module.getFunctionList().end(); curF++) {
@@ -138,7 +147,7 @@ void LocalVariables::handleCustomizedLocalVariables(Module &module,
 				for (auto curB = curF->begin(); curB != curF->end(); curB++) {
 					for (auto curI = curB->begin(); curI != curB->end();
 							curI++) {
-						if (auto gep = dyn_cast<llvm::GetElementPtrInst>(curI))
+						if (auto gep = dyn_cast<GetElementPtrInst>(curI))
 							if (returnIndex(instList, gep)
 									< neckIndex(module, instList))
 								//check if the gep is matching one of the elements in clocals
@@ -146,18 +155,18 @@ void LocalVariables::handleCustomizedLocalVariables(Module &module,
 										&& processGepInstr(gep, elem.first)) {
 									//perform the constant conversion
 									for (auto i : gep->users()) {
-										outs() << "GEP: " << *gep << "\n";
-										outs() << "\tuser of GEP: " << *i
+										strLogger << "GEP: " << *gep << "\n";
+										strLogger << "\tuser of GEP: " << *i
 												<< "\n";
 										if (auto si = dyn_cast<StoreInst>(i)) {
 											if (auto ci = dyn_cast<ConstantInt>(
 													si->getOperand(0))) {
 												auto val =
-														llvm::ConstantInt::get(
+														ConstantInt::get(
 																si->getOperand(
 																		0)->getType(),
 																		elem.second);
-												llvm::outs()
+												strLogger
 												<< "\tSI uses GEP replace.. \n\n";
 												StoreInst *str = new StoreInst(
 														val, si->getOperand(1));
@@ -173,6 +182,7 @@ void LocalVariables::handleCustomizedLocalVariables(Module &module,
 				}
 		}
 	}
+	logger << strLogger.str();
 	//post-neck
 	replaceLocalStructUsesAfterNeck(module, clocals, instList);
 }
@@ -205,13 +215,16 @@ map<uint64_t, Instruction*> getAllInstr(Module &module) {
 void LocalVariables::replaceLocalPrimitiveUsesAfterNeck(Module &module, map<string, uint64_t> &plocals,
 		map<AllocaInst*, uint64_t> instrToIdx,
 		std::vector<Instruction*> instList){
+	string str;
+	raw_string_ostream strLogger(str);
+
 	map<AllocaInst*, uint64_t> updatedInstrToIdx;
 	for (auto var : instrToIdx){
 		std::vector<LoadInst*> loadInstUseGep;
 		bool isThereStoreInst = 0;
 		for (auto i : var.first->users()) {
 			if (returnIndex(instList, cast<Instruction>(i)) > neckIndex(module, instList)){
-//				outs() << "INS After neck:: " << *i << "\n";
+//				strLogger << "INS After neck:: " << *i << "\n";
 				if (auto si = dyn_cast<StoreInst>(i)){
 					isThereStoreInst = 1;
 					break;
@@ -222,7 +235,7 @@ void LocalVariables::replaceLocalPrimitiveUsesAfterNeck(Module &module, map<stri
 			updatedInstrToIdx.emplace(var.first, var.second);
 	}
 
-	outs() << "*****\nReplacing Load Intructions After neck...\n";
+	strLogger << "\n*****\nReplacing Load Intructions After neck (Primitive)...\n";
 	for (auto var : updatedInstrToIdx){
 		for (auto i : var.first->users()) {
 			if (auto ld = dyn_cast<llvm::LoadInst>(i)) {
@@ -230,8 +243,8 @@ void LocalVariables::replaceLocalPrimitiveUsesAfterNeck(Module &module, map<stri
 				if (constVal != plocals.end())
 					if (auto intType = dyn_cast<IntegerType>(var.first->getType()->getElementType())) {
 						auto val = llvm::ConstantInt::get(intType, constVal->second);
-						llvm::outs() << "\nLD replace.. \n";
-						llvm::outs() << "\tFOUND: " << *var.first << " :: "
+						strLogger << "\nLD replace.. \n";
+						strLogger << "\tFOUND: " << *var.first << " :: "
 								<< var.second << " :: " << *i << "\n";
 						//ReplaceInstWithValue(ld->getParent()->getInstList(), ld, val);
 						ld->replaceAllUsesWith(val);
@@ -240,21 +253,23 @@ void LocalVariables::replaceLocalPrimitiveUsesAfterNeck(Module &module, map<stri
 			}
 		}
 	}
+	logger << strLogger.str();
 }
 
 void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 		map<string, uint64_t> &plocals) {
-	outs() << "Run handleLocalVariables\n";
+	string str;
+	raw_string_ostream strLogger(str);
+	strLogger << "*****\nRun handleLocalVariables\n";
 	//	set<BasicBlock> visitedBbs = populateBasicBlocks();
 	map<AllocaInst*, uint64_t> instrToIdx;
-	//map<uint64_t, AllocaInst> idxToAlloc;
 	std::vector<Instruction*> instList;
 
 	map<uint64_t, Instruction*> mapIdxInst = getAllInstr(module);
 
 	map<llvm::AllocaInst*, std::string> instrToVarName;
 
-	outs() << "Find list of matching instructions that have index in locals.\n";
+	strLogger << "*****\nFind list of matching instructions that have index in locals.\n";
 	for (auto curF = module.getFunctionList().begin(), endF =
 			module.getFunctionList().end(); curF != endF; ++curF) {
 		string fn = curF->getName();
@@ -274,13 +289,13 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
 				for (auto curI = curB->begin(); curI != curB->end(); ++curI) {
 					//to keep the index i consistent and matching the one in KLEE
-					//outs() <<"i: " << i << " --- " << *curI<< "\n";
+					//strLogger <<"i: " << i << " --- " << *curI<< "\n";
 					if (auto br = dyn_cast<BranchInst>(&*curI)) {
 						//check if the previous instr is br
 						auto inst = mapIdxInst.find(i - 1);
 						if (inst != mapIdxInst.end()
 								&& isa<BranchInst>(inst->second)) {
-							//outs() << "****Found TWO Branches\n";
+							//strLogger << "****Found TWO Branches\n";
 							--i;
 						}
 					}
@@ -294,7 +309,7 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 					 	}
 						//obtain the names of local variables, if applicable
 						if (!al->hasName()) {
-							outs() << *al << "\n";
+							strLogger << *al << "\n";
 							for (auto I = curB->begin(); I != curB->end();
 									I++) {
 								if (DbgDeclareInst *dbg = dyn_cast<
@@ -304,7 +319,7 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 										if (dbgAI == al) {
 											if (DILocalVariable *varMD =
 													dbg->getVariable()) {
-												outs() << "VarName: "
+												strLogger << "VarName: "
 														<< varMD->getName().str()
 														<< "\n";
 												instrToVarName.emplace(
@@ -316,7 +331,7 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 								}
 							}
 						} else {
-							outs() << "NAME:: " << al->getName() << "\n";
+							strLogger << "NAME:: " << al->getName() << "\n";
 						}
 					}
 					i++;
@@ -329,7 +344,7 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 			module.getFunctionList().end(); curF != endF; ++curF) {
 		string fn = curF->getName();
 		if (fn == "main") {
-			outs() << "Start Converting Primitive locals to constant\n";
+			strLogger << "*****\nStart Converting Primitive locals to constant\n";
 			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
 				for (auto curI = curB->begin(); curI != curB->end(); curI++) {
 					//i need to add if store isnt and 1)its 2nd operand is alloc instr and 2)1st operand is constvalue, the
@@ -357,13 +372,11 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 														opr->getType()->getElementType())) {
 											auto val = llvm::ConstantInt::get(
 													intType, constVal->second);
-											llvm::outs() << "\nLD replace.. \n";
-											llvm::outs() << "\tFOUND: "
+											strLogger << "\nLD replace.. \n";
+											strLogger << "\tFOUND: "
 													<< *inst->first << " :: "
 													<< inst->second << " :: "
 													<< *curI << "\n";
-											outs() << "intType: " << *intType
-													<< "\n";
 											ReplaceInstWithValue(
 													curI->getParent()->getInstList(),
 													curI, val);
@@ -374,8 +387,8 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 					} else if (auto si = dyn_cast<llvm::StoreInst>(curI)) {
 						if (returnIndex(instList, si)
 								< neckIndex(module, instList)) {
-							//outs() << "SI:  " << *si << "\n";
-							//outs() << "\toperands:: " << si->getNumOperands() << " ---opr0: " << *si->getOperand(0) <<  " ---opr1: " << *si->getOperand(1) << "\n";
+							//strLogger << "SI:  " << *si << "\n";
+							//strLogger << "\toperands:: " << si->getNumOperands() << " ---opr0: " << *si->getOperand(0) <<  " ---opr1: " << *si->getOperand(1) << "\n";
 
 							if (isa<ConstantInt>(si->getOperand(0)))
 								if (auto opr = dyn_cast<llvm::AllocaInst>(
@@ -393,9 +406,9 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 														llvm::ConstantInt::get(
 																intType,
 																constVal->second);
-												llvm::outs()
+												strLogger
 												<< "\nSI replace.. \n";
-												llvm::outs() << "\tFOUND: "
+												strLogger << "\tFOUND: "
 														<< *inst->first
 														<< " :: "
 														<< inst->second
@@ -408,7 +421,7 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 												ReplaceInstWithInst(
 														curB->getInstList(),
 														curI, str);
-												outs() << "\tAfter conv: "
+												strLogger << "\tAfter conv: "
 														<< *curI << "\n";
 											}
 										}
@@ -420,6 +433,7 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 			}
 		}
 	}
-//	replaceLocalPrimitiveUsesAfterNeck(module, plocals, instrToIdx, instList);
+	logger << strLogger.str();
+	replaceLocalPrimitiveUsesAfterNeck(module, plocals, instrToIdx, instList);
 }
 
