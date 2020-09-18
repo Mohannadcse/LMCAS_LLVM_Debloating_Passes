@@ -518,19 +518,27 @@ void ProfilerPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 void ProfilerPass::printCountersCSV(Module& M) {
 	ofstream ofs;
-
 	std::string filename = "report.csv";
 
 	std::ifstream ofs_check(filename);
 	ofs.open(filename, std::ofstream::out | std::ofstream::app);
+
 	if (!ofs_check.good()) {
 		ofs << "AppName,Pass,TotalInstr,TotalFunc,TotalBBs,Size\n";
 	}
 	if(AppSize != ""){
 		auto id = M.getModuleIdentifier();
-		std::vector<std::string> vec = splitString(id, '_');
-		ofs << vec[0] << ",";
-		ofs << vec[1].substr(0, vec[1].find(".")) << ",";
+		std::vector<std::string> vec;
+		if (id.find("/") != std::string::npos) {
+			vec = splitString(id, '/');
+			ofs << vec[vec.size()-1] <<",";
+		} else {
+			vec = splitString(id, '_');
+			ofs << vec[0] << ",";
+		}
+
+		ofs << vec[vec.size()-1].substr(0, vec[vec.size()-1].find(".")) << ",";
+
 		ofs << TotalInsts.Value << ",";
 		ofs << TotalFuncs.Value << ",";
 		ofs << TotalBlocks.Value << ",";

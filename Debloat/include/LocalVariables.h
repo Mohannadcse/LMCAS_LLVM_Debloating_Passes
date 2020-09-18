@@ -15,6 +15,9 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/InstIterator.h"
+
+#include <set>
 
 #include "Utility.h"
 
@@ -24,18 +27,30 @@ using namespace std;
 
 class LocalVariables {
 private:
+	typedef tuple <bool, vector<LoadInst*>, uint64_t> postNeckGepInfo;
 	ofstream logger;
-	void replaceLocalPrimitiveUsesAfterNeck(Module &module, map<string, uint64_t> &plocals,
-			map<AllocaInst*, uint64_t> instrToIdx, std::vector<Instruction*> instList);
-	void replaceLocalStructUsesAfterNeck(Module &module,
+	vector<Instruction*> instList;
+
+	void handleLocalPrimitiveUsesAfterNeck(Module &module, map<string, uint64_t> &plocals,
+			map<AllocaInst*, uint64_t> instrToIdx, vector<Instruction*> instList,
+			map<AllocaInst*, string> instrToVarName);
+	void handleLocalStructUsesAfterNeck(Module &module,
 			map<pair<std::string, uint64_t>, uint64_t> &clocals,
 			vector<Instruction*> instList);
+	void replaceStructPostNeck(vector<pair<GetElementPtrInst*, postNeckGepInfo>> gepInfo);
+	void inspectInitalizationPreNeck(Module& module, vector<Instruction*> instList,
+			map<pair<string, uint64_t>, uint64_t> &clocals);
+	void handleStructInOtherMethods(Function* fn, map<pair<string, uint64_t>, uint64_t> &clocals);
+
 public:
+	void testing(Module&);
 	void handlePrimitiveLocalVariables(Module &module, map<string, uint64_t> &plocals);
-	void handleCustomizedLocalVariables(Module &module, map <pair<std::string, uint64_t>, uint64_t> &clocals);
+	void handleCustomizedLocalVariables(Module &module, map <pair<string, uint64_t>, uint64_t> &clocals);
+	void handlePtrToPrimitiveLocalVariables(Module &module,
+			map<uint64_t, pair<uint64_t, uint64_t>> &ptrToPrimtive);
+	void initalizeInstList(Module &module);
 	LocalVariables() {
 		logger.open("logger.txt", ofstream::app);
-
 	}
 //	~LocalVariables(){
 //		logger << strLogger.str();

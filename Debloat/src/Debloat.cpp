@@ -35,6 +35,10 @@ cl::opt<string> GlobalsFile("globals",
 		cl::desc("file containing global to constant mapping"));
 cl::opt<string> PrimitiveLocalsFile("plocals",
 		cl::desc("file containing primitive local to constant mapping"));
+cl::opt<string> PtrToPrimitiveLocalsFile("ptrToPrimLocals",
+		cl::desc("file containing pointer to primitive local to constant mapping"));
+cl::opt<string> PtrStrctLocalsFile("ptrStructlocals",
+		cl::desc("file containing customized local to constant mapping"));
 cl::opt<string> CustomizedLocalsFile("clocals",
 		cl::desc("file containing customized local to constant mapping"));
 cl::opt<string> BBFile("bbfile",
@@ -77,6 +81,27 @@ map<string, uint64_t> populateGobals() {
 	}
 	return res;
 }
+
+map<uint64_t, pair<uint64_t, uint64_t>> populatePtrPrimitiveLocals() {
+	map<uint64_t, pair<uint64_t, uint64_t>> res;
+	ifstream ifs(PtrToPrimitiveLocalsFile.c_str());
+	uint64_t ptrIdx;
+	uint64_t actualIdx;
+	uint64_t value;
+	std::string line;
+	for (int i = 0; std::getline(ifs, line); i++) {
+		if (line.find(" ") != std::string::npos) {
+			splitString(line, ' ');
+			auto tmpVect = splitString(line, ' ');
+			ptrIdx = strtoul(tmpVect[0].c_str(), nullptr, 10);
+			actualIdx = strtoul(tmpVect[1].c_str(), nullptr, 10);
+			value = strtoul(tmpVect[2].c_str(), nullptr, 10);
+			res.emplace(ptrIdx, make_pair(actualIdx, value));
+		}
+	}
+	return res;
+}
+
 map<string, uint64_t> populatePrimitiveLocals() {
 	map<string, uint64_t> res;
 	ifstream ifs(PrimitiveLocalsFile.c_str());
@@ -93,6 +118,26 @@ map<string, uint64_t> populatePrimitiveLocals() {
 		}
 	}
 	return res;
+}
+
+map <pair<std::string, uint64_t>, uint64_t> populatePtrStrctLocals() {
+	map <pair<std::string, uint64_t>, uint64_t> ret;
+
+	ifstream ifs(PtrStrctLocalsFile.c_str());
+	uint64_t value, structElem;
+	std::string line, structName;
+
+	for (int i = 0; std::getline(ifs, line); i++) {
+		if (line.find(" ") != std::string::npos) {
+			splitString(line, ' ');
+			auto tmpVect = splitString(line, ' ');
+			structName = tmpVect[0];
+			structElem = strtoul(tmpVect[1].c_str(), nullptr, 10);
+			value = strtoul(tmpVect[2].c_str(), nullptr, 10);
+			ret.emplace(make_pair(structName, structElem), value);
+		}
+	}
+	return ret;
 }
 
 map <pair<std::string, uint64_t>, uint64_t> populateCustomizedLocals() {
@@ -150,44 +195,62 @@ void updateVisitedBasicBlocks(Module &module, set<BasicBlock> &visitedBbs) {
 struct Debloat: public ModulePass {
 	static char ID; // Pass identification, replacement for typeid
 	Debloat() :
-			ModulePass(ID) {
+		ModulePass(ID) {
 	}
 
 	bool runOnModule(Module &module) override {
 		set<pair<string, uint64_t>> visitedBbs = populateBasicBlocks();
 		map<string, uint64_t> globals = populateGobals();
 		map<string, uint64_t> plocals = populatePrimitiveLocals();
+		map<uint64_t, pair<uint64_t, uint64_t>> ptrPrimLocals = populatePtrPrimitiveLocals();
+		map <pair<std::string, uint64_t>, uint64_t> ptrStrLocals = populatePtrStrctLocals();
 		map <pair<std::string, uint64_t>, uint64_t> clocals = populateCustomizedLocals();
-
 
 		if (globals.size() != 0) {
 			GlobalVariables gv;
 			gv.handleGlobalVariables(module, globals, visitedBbs);
 		}
 
-		if (plocals.size() != 0) {
+		/*if (plocals.size() != 0) {
 			LocalVariables lv;
 			outs() << "\nSizeof Primitive Locals: " << plocals.size() << "\n";
+			lv.initalizeInstList(module);
 			lv.handlePrimitiveLocalVariables(module, plocals);
+		}
+
+		if (ptrPrimLocals.size() != 0){
+			LocalVariables lv;
+			outs() << "\nSizeof Pointer Primitive Locals: " << ptrPrimLocals.size() << "\n";
+			lv.initalizeInstList(module);
+			lv.handlePtrToPrimitiveLocalVariables(module, ptrPrimLocals);
 		}
 
 		if (clocals.size() != 0){
 			LocalVariables lv;
 			outs() << "\nSizeof Customized Locals: " << clocals.size() << "\n";
-			//lv.handleCustomizedLocalVariables(module, clocals);
-
+			lv.handleCustomizedLocalVariables(module, clocals);
 		}
+
+		if (ptrStrLocals.size() != 0){
+			LocalVariables lv;
+			outs() << "\nSizeof Pointers to struct Locals: " << ptrStrLocals.size() << "\n";
+			lv.handleCustomizedLocalVariables(module, ptrStrLocals);
+		}*/
 
 		if (SimplifyPredicates) {
 			outs() << "Simplifying Predicates is enabled\n";
-//			Predicates p;
-//			p.handlePredicates(module);
+			//			Predicates p;
+			//			p.handlePredicates(module);
 		}
 
 		if (CleaningUp) {
 			CleaningUpStuff cp;
 			cp.removeUnusedStuff(module);
 		}
+
+		LocalVariables lv;
+		lv.testing(module);
+
 		return true;
 	}
 };

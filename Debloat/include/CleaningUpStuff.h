@@ -15,12 +15,24 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/IR/Function.h"
+#include "llvm/Analysis/CallGraph.h"
+
+#include <set>
+
+#include "Utility.h"
 
 using namespace llvm;
 
 class CleaningUpStuff {
 public:
 	void removeUnusedStuff(Module &module);
+	CleaningUpStuff(){
+		logger.open("logger.txt", std::ofstream::app);
+	}
+
+private:
+	std::ofstream logger;
+	void dfsutils(llvm::CallGraph &cg, Function* f, std::set<const llvm::Function*>&reachableFunctionsFromMain);
 };
 
 
