@@ -1,7 +1,7 @@
 This repo contains 2 LLVM passes:
 =================================
 
-1- Debloat: provides several obtions to perform debloating 
+1- Debloat: provides several options to perform debloating 
 
 2- Profiler: analysis pass that generates several statistics about number of methods, calls, instructions, basic blocks, etc..
 
