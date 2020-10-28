@@ -32,7 +32,8 @@ private:
 	ofstream logger;
 
 public:
-	void handleGlobalVariables(Module &module, map<string, uint64_t> &globals, set<pair<string, uint64_t>> visitedBbs);
+	void handleGlobalVariables(Module &module, map<string, uint64_t> &globals,
+			set<pair<string, uint64_t>> visitedBbs, string);
 	GlobalVariables(){
 		logger.open("logger.txt", ofstream::app);
 	}

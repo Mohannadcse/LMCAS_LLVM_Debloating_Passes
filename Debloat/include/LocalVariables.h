@@ -33,22 +33,25 @@ private:
 
 	void handleLocalPrimitiveUsesAfterNeck(Module &module, map<string, uint64_t> &plocals,
 			map<AllocaInst*, uint64_t> instrToIdx, vector<Instruction*> instList,
-			map<AllocaInst*, string> instrToVarName);
+			map<AllocaInst*, string> instrToVarName, string);
+	void handlePtrLocalStructUsesAfterNeck(Module &module,
+			map<tuple<std::string, uint64_t, int>, uint64_t> &clocals, int &a, string);
 	void handleLocalStructUsesAfterNeck(Module &module,
-			map<pair<std::string, uint64_t>, uint64_t> &clocals,
-			vector<Instruction*> instList);
+			map <pair<std::string, uint64_t>, uint64_t> &, int &a, string);
 	void replaceStructPostNeck(vector<pair<GetElementPtrInst*, postNeckGepInfo>> gepInfo);
 	void inspectInitalizationPreNeck(Module& module, vector<Instruction*> instList,
-			map<pair<string, uint64_t>, uint64_t> &clocals);
-	void handleStructInOtherMethods(Function* fn, map<pair<string, uint64_t>, uint64_t> &clocals);
+			map<tuple<string, uint64_t, int>, uint64_t> &clocals, int &, string);
+	void handleStructInOtherMethods(Function* fn, map<tuple<string, uint64_t, int>, uint64_t> &clocals, int &);
 
 public:
 	void testing(Module&);
-	void handlePrimitiveLocalVariables(Module &module, map<string, uint64_t> &plocals);
-	void handleCustomizedLocalVariables(Module &module, map <pair<string, uint64_t>, uint64_t> &clocals);
+	void handleStringVars(Module&, map<uint64_t, pair<uint64_t, string>>, string);
+	void handlePrimitiveLocalVariables(Module &module, map<string, uint64_t> &plocals, string);
+	void handleStructLocalVars(Module &module, map <pair<std::string, uint64_t>, uint64_t> &structLocals, string);
+	void handlePtrToStrctLocalVars(Module &module, map <tuple<string, uint64_t, int>, uint64_t> &ptrStructLocals, string);
 	void handlePtrToPrimitiveLocalVariables(Module &module,
-			map<uint64_t, pair<uint64_t, uint64_t>> &ptrToPrimtive);
-	void initalizeInstList(Module &module);
+			map<uint64_t, pair<uint64_t, uint64_t>> &ptrToPrimtive, string);
+	void initalizeInstList(Module &module, string);
 	LocalVariables() {
 		logger.open("logger.txt", ofstream::app);
 	}

@@ -11,7 +11,7 @@
 //typedef pair<string, uint64_t> BasicBlocks;
 
 void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t> &globals,
-		set<pair<string, uint64_t>> visitedBbs) {
+		set<pair<string, uint64_t>> visitedBbs, string funcName) {
 	logger << "\nRun handleGlobalVariables\n";
 	//set<BasicBlock> visitedBbs = populateBasicBlocks();
 //	updateVisitedBasicBlocks(module, visitedBbs);
@@ -27,7 +27,7 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 
 	logger << "Remaind Variables After 1st iteration\n";
 	for (auto &&kv : globals) {
-		errs() << kv.first << " " << kv.second << "\n";
+		logger << kv.first << " " << kv.second << "\n";
 		auto it = globals.find("optind");
 		if (it != globals.end()) {
 			logger << "Remove optind" << "\n";
@@ -39,7 +39,7 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 	for (auto curF = module.getFunctionList().begin();
 			curF != module.getFunctionList().end(); curF++) {
 		string fn = curF->getName();
-		if (fn == "main") {
+		if (fn == funcName) {
 			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
 				for (auto curI = curB->begin(); curI != curB->end(); curI++) {
 					if (auto si = dyn_cast<StoreInst>(&(*curI))) {
@@ -65,7 +65,7 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 	}
 	logger << "Remaind Variables After 2nd iteration\n";
 	for (auto &&kv : newGlobals) {
-		errs() << kv.first << " " << kv.second << "\n";
+		logger << kv.first << " " << kv.second << "\n";
 	}
 
 // make remaining globals constant
@@ -76,7 +76,7 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 		uint32_t bbnum = 0;
 		for (auto curB = curF->begin(), endB = curF->end(); curB != endB;
 				++curB, ++bbnum) {
-			if (visitedBbs.find(pair<string, uint64_t>(fn, bbnum)) != visitedBbs.end())
+			if (visitedBbs.find(pair<string, uint64_t>(fn, bbnum)) == visitedBbs.end())
 				continue;
 			auto curI = curB->begin(), endI = curB->end();
 			while (curI != endI) {
@@ -92,7 +92,7 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 									gvar->getType()->getElementType())) {
 								auto val = ConstantInt::get(intType,
 										it->second);
-								//								logger << "\tFOUND: " << it->first
+								//							logger << "\tFOUND: " << it->first
 								//																				<< " :: " << it->second
 								//																				<< " :: " << *curI << "\n";
 								ReplaceInstWithValue(curB->getInstList(), curI,

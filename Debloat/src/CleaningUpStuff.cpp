@@ -124,7 +124,10 @@ void CleaningUpStuff::removeUnusedStuff(Module &module) {
 		!= funcToBeRemoved.end()) {
 			continue;
 		} else {
+			//TODO if the uses of the variable are all store,
+			//then I can safely remove it
 			//remove alloc inst that only used once in a store instr.
+			//because this is probably where the var is initialized
 			//the alloc inst should be the 2nd operand of the store instr
 			//I created 2 Instruction vectors: aloc instrs and stor instr. Because I need to remove store instrs before alloc instr
 			//otherwise, I'll receive errors if the alloc was removed before its store insr
