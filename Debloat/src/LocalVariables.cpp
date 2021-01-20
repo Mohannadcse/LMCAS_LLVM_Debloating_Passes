@@ -7,6 +7,11 @@
 
 #include "LocalVariables.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/User.h"
+#include "llvm/IR/Value.h"
+#include "llvm/IR/Use.h"
+#include "llvm/Analysis/AliasSetTracker.h"
+
 //#include "llvm/IR/DerivedTypes.h"
 
 int returnIndex(std::vector<Instruction*> list, Instruction *inst) {
@@ -301,7 +306,7 @@ void LocalVariables::handleStructLocalVars(Module &module, map <pair<std::string
 		}
 	}
 	logger << strLogger.str();
-	handleLocalStructUsesAfterNeck(module, structLocals, modifiedInst, funcName);
+//	handleLocalStructUsesAfterNeck(module, structLocals, modifiedInst, funcName);
 	//inspectInitalizationPreNeck(module, instList, ptrStructLocals, modifiedInst, funcName);
 }
 
@@ -565,7 +570,7 @@ void LocalVariables::handleLocalPrimitiveUsesAfterNeck(Module &module,
 
 	string str;
 	raw_string_ostream strLogger(str);
-
+	strLogger << "INSIDE handleLocalPrimitiveUsesAfterNeck\n";
 	map<AllocaInst*, uint64_t> updatedInstrToIdx;
 	for (auto var : instrToIdx) {
 		std::vector<LoadInst*> loadInstUseGep;
@@ -573,7 +578,7 @@ void LocalVariables::handleLocalPrimitiveUsesAfterNeck(Module &module,
 		for (auto i : var.first->users()) {
 			if (returnIndex(instList, cast<Instruction>(i))
 					> neckIndex(module, instList, funcName)) {
-				//				strLogger << "INS After neck:: " << *i << "\n";
+								strLogger << "INS After neck:: " << *i << "\n";
 				if (auto si = dyn_cast<StoreInst>(i)) {
 					isThereStoreInst = 1;
 					break;
@@ -583,11 +588,13 @@ void LocalVariables::handleLocalPrimitiveUsesAfterNeck(Module &module,
 		if (!isThereStoreInst)
 			updatedInstrToIdx.emplace(var.first, var.second);
 	}
-
 	strLogger
 	<< "\n*****\nReplacing Load Intructions After neck (Primitive)...\n";
 	for (auto var : updatedInstrToIdx) {
+		strLogger << "var: " << *var.first << "\n";
 		for (auto i : var.first->users()) {
+			strLogger << "\tUSER: " << *i <<"\n";
+
 			if (auto ld = dyn_cast<llvm::LoadInst>(i)) {
 				if (returnIndex(instList, cast<Instruction>(i))
 						> neckIndex(module, instList, funcName)
@@ -605,7 +612,7 @@ void LocalVariables::handleLocalPrimitiveUsesAfterNeck(Module &module,
 									<< var.second << " :: " << *i << "\n";
 							//ReplaceInstWithValue(ld->getParent()->getInstList(), ld, val);
 							ld->replaceAllUsesWith(val);
-							ld->eraseFromParent();
+//							ld->eraseFromParent(); //TODO this stmt causes the problem. Woork around is putting the ld inst that should be removed in a vector and then iterate the elements of the vector to remove the instr
 						}
 				}
 			}
@@ -722,6 +729,7 @@ void LocalVariables::handleStringVars(Module &module, map<uint64_t, pair<uint64_
 		Value *gv_i_ref =
 				builder.CreateConstGEP2_32(
 						cast<PointerType>(gv->getType())->getElementType(),gv, 0, 0);
+
 		if (auto al = dyn_cast<AllocaInst>(it)){
 			strLogger << "Found Alloc inst correspong to elem\n";
 			//iterate all uses of the instr
@@ -753,12 +761,15 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 	raw_string_ostream strLogger(str);
 	strLogger << "*****\nRun handleLocalVariables\n";
 	//	set<BasicBlock> visitedBbs = populateBasicBlocks();
-	map<AllocaInst*, uint64_t> instrToIdx;
-
+	map<AllocaInst*, uint64_t> stackVarToIdx;
 
 	map<uint64_t, Instruction*> mapIdxInst = getAllInstr(module);
 
 	map<AllocaInst*, std::string> instrToVarName;
+
+	//I need to update plocals because I noticed some vars are included but their declaration is after the neck.
+	//So I need to remove these stack vars
+	map<string, uint64_t> updatedPlocals;
 
 	strLogger
 	<< "*****\nFind list of matching instructions that have index in locals.\n";
@@ -796,13 +807,13 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 					if (auto al = dyn_cast<llvm::AllocaInst>(curI)) {
 						if (id != plocals.end()) {
 							if (!isa<StructType>(
-									al->getType()->getElementType()))
-								instrToIdx.emplace(cast<llvm::AllocaInst>(curI),
+									al->getType()->getElementType())){
+								stackVarToIdx.emplace(cast<llvm::AllocaInst>(curI),
 										i);
+							}
 						}
 						//obtain the names of local variables, if applicable
 						if (!al->hasName()) {
-							strLogger << *al << "\n";
 							for (auto I = curB->begin(); I != curB->end();
 									I++) {
 								if (DbgDeclareInst *dbg = dyn_cast<
@@ -810,9 +821,14 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 									if (const AllocaInst *dbgAI = dyn_cast<
 											AllocaInst>(dbg->getAddress()))
 										if (dbgAI == al) {
+											auto ff = returnIndex(instList, dbg) < neckIndex(module, instList, funcName);
+											if (id != plocals.end() && ff)
+												updatedPlocals.emplace(id->first, id->second);
+
 											if (DILocalVariable *varMD =
 													dbg->getVariable()) {
-												strLogger << "VarName: "
+												strLogger << *al << "\n";
+												strLogger << "\tVarName: "
 														<< varMD->getName().str()
 														<< "\n";
 												instrToVarName.emplace(
@@ -857,8 +873,8 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 									continue;
 
 								//here I need to check the mapping list of local variables and their values
-								auto inst = instrToIdx.find(opr);
-								if (inst != instrToIdx.end()) {
+								auto inst = stackVarToIdx.find(opr);
+								if (inst != stackVarToIdx.end()) {
 									auto constVal = plocals.find(
 											std::to_string(inst->second));
 									if (constVal != plocals.end()) {
@@ -882,14 +898,14 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 					} else if (auto si = dyn_cast<StoreInst>(curI)) {
 						if (returnIndex(instList, si)
 								< neckIndex(module, instList, funcName)) {
-							//strLogger << "SI:  " << *si << "\n";
-							//strLogger << "\toperands:: " << si->getNumOperands() << " ---opr0: " << *si->getOperand(0) <<  " ---opr1: " << *si->getOperand(1) << "\n";
+//							strLogger << "SI:  " << *si << "\n";
+//							strLogger << "\toperands:: " << si->getNumOperands() << " ---opr0: " << *si->getOperand(0) <<  " ---opr1: " << *si->getOperand(1) << "\n";
 
 							if (isa<ConstantInt>(si->getOperand(0)))
 								if (auto opr = dyn_cast<llvm::AllocaInst>(
 										si->getOperand(1))) {
-									auto inst = instrToIdx.find(opr);
-									if (inst != instrToIdx.end()) {
+									auto inst = stackVarToIdx.find(opr);
+									if (inst != stackVarToIdx.end()) {
 										auto constVal = plocals.find(
 												std::to_string(inst->second));
 										if (constVal != plocals.end()) {
@@ -927,14 +943,69 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 			}
 		}
 	}
+
+	strLogger << "sizeUPDATED:: " <<updatedPlocals.size() << "\n";
+	for (auto it : updatedPlocals)
+		strLogger << it.first << it.second << "\n";
+
+	strLogger << "size:: " <<plocals.size() << "\n";
+	for (auto it : plocals)
+			strLogger << it.first << it.second << "\n";
+
 	logger << strLogger.str();
-	handleLocalPrimitiveUsesAfterNeck(module, plocals, instrToIdx, instList,
+	handleLocalPrimitiveUsesAfterNeck(module, updatedPlocals, stackVarToIdx, instList,
 			instrToVarName, funcName);
 }
 
 void LocalVariables::testing(Module &module){
+	string str;
+	raw_string_ostream strLogger(str);
+	strLogger << "Inside test procedure...\n";
 	for (auto g = module.global_begin(); g != module.global_end(); g++){
-		outs() << "g: " << *g << "\n";
+		strLogger << "g: " << *g << "\n";
+		for (Value::use_iterator u = g->use_begin(); u != g->use_end(); u++){
+			strLogger << "use: " << *u->getUser() << "\n";
+		}
 	}
+
+	for (auto f = module.getFunctionList().begin(); f != module.getFunctionList().end(); f++){
+		strLogger << "Func: " << f->getName() << "\n";
+		for (auto bb = f->begin(); bb != f->end(); bb++){
+			for (auto i = bb->begin(); i != bb->end(); i++){
+				if (auto st = dyn_cast<StoreInst>(i)){
+					/*strLogger << "inst: " << *i << "\n";
+					strLogger << "\topr0: " << *st->getOperand(0) <<"\n";
+					strLogger << "\topr1: " << *st->getOperand(1) <<"\n";
+					for (auto us : st->users()){
+						strLogger << "usr: " << *us <<"\n";
+					}
+					for (auto u = st->use_begin(); u != st->use_end(); u++){
+						strLogger << "use: " << *u <<"\n";
+					}
+					for (auto u = st->user_begin(); u != st->user_end(); u++){
+						strLogger << "user: " << *u << "\n";
+					}
+					for (auto u = st->uses().begin(); u != st->uses().end(); u++){
+						strLogger << "uses: " << *u << "\n";
+					}*/
+					outs() << "str: " << *st << "\n";
+					outs() << "\tPTR oprnd: " << *st->getPointerOperand() << "\n";
+				}
+				/*if (auto ld = dyn_cast<LoadInst>(i)){
+					strLogger << "LD: " << *ld << "\n";
+					for (User *user : ld->users()){
+						Instruction* I = dyn_cast<Instruction>(user);
+						strLogger << "user: " << *I << "\n";
+					}
+					for (Use& user : ld->uses()){
+						Instruction* I = dyn_cast<Instruction>(user);
+						strLogger << "uses: " << *I << "\n";
+					}
+				}*/
+			}
+		}
+	}
+
+	logger << strLogger.str();
 }
 

@@ -14,6 +14,13 @@
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/User.h"
 
+#include "llvm/Analysis/MemoryLocation.h"
+
+#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/AliasSetTracker.h"
+#include "llvm/PassAnalysisSupport.h"
+#include "llvm/IR/Function.h"
+
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
@@ -54,6 +61,7 @@ cl::opt<bool> CleaningUp("cleanUp",
 		llvm::cl::init(false));
 
 namespace {
+
 
 set<pair<string, uint64_t>> populateBasicBlocks() {
 	set<pair<string, uint64_t>> res;
@@ -113,12 +121,22 @@ map<uint64_t, pair<uint64_t, string>> populateStringVars() {
 	std::string line;
 	for (int i = 0; std::getline(ifs, line); i++) {
 		if (line.find(" ") != std::string::npos) {
-			splitString(line, ' ');
+//			splitString(line, ' ');
 			auto tmpVect = splitString(line, ' ');
 			ptrIdx = strtoul(tmpVect[0].c_str(), nullptr, 10);
 			actualIdx = strtoul(tmpVect[1].c_str(), nullptr, 10);
 			value = tmpVect[2];//strtoul(tmpVect[2].c_str(), nullptr, 10);
-			res.emplace(ptrIdx, make_pair(actualIdx, value));
+			//i need to check the actualIdx not equal -1 before adding to the list. I already chk that in KLEE
+			//but still the string variable is exported
+			for (int c = 3; c < tmpVect.size(); c++){
+				outs() << tmpVect[c] << "\t";
+				value = value + ' ' + tmpVect[c];
+			}
+
+			outs() << "\nvalue: " << value << "\n";
+
+			if (actualIdx != -1)
+				res.emplace(ptrIdx, make_pair(actualIdx, value));
 		}
 	}
 	return res;
@@ -235,11 +253,11 @@ void updateVisitedBasicBlocks(Module &module, set<pair<string, uint64_t>> &visit
 
 struct Debloat: public ModulePass {
 	static char ID; // Pass identification, replacement for typeid
-	Debloat() :
-		ModulePass(ID) {
-	}
+	Debloat() : ModulePass(ID) {}
 
 	bool runOnModule(Module &module) override {
+//		AliasAnalysis& AA = getAnalysis<AliasAnalysis>();
+//		AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
 		set<pair<string, uint64_t>> visitedBbs = populateBasicBlocks();
 		updateVisitedBasicBlocks(module, visitedBbs);
 		map<string, uint64_t> globals = populateGobals();
@@ -254,6 +272,7 @@ struct Debloat: public ModulePass {
 
 		LocalVariables lv;
 		lv.initalizeInstList(module, funcName);
+//		lv.testing(module);
 
 		if (globals.size() != 0) {
 			outs() << "\nConvert global variables: " << globals.size() << "\n";
@@ -286,22 +305,77 @@ struct Debloat: public ModulePass {
 			lv.handleStringVars(module, strVars, funcName);
 		}
 
-		SimplifyPredicates = true;
-		if (SimplifyPredicates) {
-			outs() << "Simplifying Predicates is enabled\n";
-						Predicates p;
-						p.handlePredicates(module);
-		}
+//		SimplifyPredicates = true;
+//		if (SimplifyPredicates) {
+//			outs() << "Simplifying Predicates is enabled\n";
+//						Predicates p;
+//						p.handlePredicates(module);
+//		}
 
 		if (CleaningUp) {
 			CleaningUpStuff cp;
 			cp.removeUnusedStuff(module);
+//			AliasAnalysis &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
+//			lv.testing(module);
 		}
-
-		//		lv.testing(module);
 
 		return true;
 	}
+
+	/* bool runOnFunction(Function &F) override {
+	    AliasAnalysis &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
+		errs() << "Hello: ";
+		      errs().write_escaped(F.getName()) << '\n';
+	    SetVector<Value *> Pointers;
+	    for (Argument &A : F.args())
+	      if (A.getType()->isPointerTy())
+	        Pointers.insert(&A);
+	    for (Instruction &I : instructions(F))
+	      if (I.getType()->isPointerTy())
+	        Pointers.insert(&I);
+
+	    outs() << "mm: " <<Pointers.size() << "\n";
+	    for (auto m : Pointers){
+	    	outs() << "\tptr: "<< *m << "\n";
+	    	Instruction* i = cast<Instruction>(m);
+	    	outs() << "\t\tmem: " << i->mayWriteToMemory() << "\n";
+	    }
+	    for (Value *P1 : Pointers)
+	      for (Value *P2 : Pointers)
+	        (void)AA.alias(P1, MemoryLocation::UnknownSize, P2,
+	                       MemoryLocation::UnknownSize);
+	    for (auto i = inst_begin(F); i != inst_end(F); i++){
+	    	Instruction &Inst = *i;
+	    	outs() << "Inst: " << *i <<"\n";
+	    	if (isa<PointerType>(i->getType())){
+	    		outs() << "\tPOINTER_TYPE" << "\n";
+	    		if (auto ld = dyn_cast<LoadInst>(&Inst)){
+	    			outs() << "\t#oprds: " << ld->getNumOperands() << "\n";
+	    			outs() << "\t\tld: " << *ld <<"\n";
+	    			outs() << "\t\tld: " << *ld->stripPointerCasts() <<"\n";
+	    			outs() << "\t\ttype: " << *ld->getPointerOperand()->stripPointerCasts()<<"\n";
+
+	    			if (isa<PointerType>(ld->getOperand(0)->getType())){
+	    				outs() << "\t\tFOUND PTR\n";
+	    			}
+	    		}
+//	    		if (auto al = dyn_cast<AllocaInst>(&Inst)){
+//	    			outs() << "\t#oprds: " << al->getNumOperands() << "\n";
+//	    			outs() << "\t\ttype: " << *al->getOperand(0)->getType() <<"\n";
+//	    		}
+	    	}
+//	    	outs() << "\t\tmem: " << i->mayWriteToMemory() << "\n";
+	    }
+
+	    return false;
+	  }*/
+
+	/*void getAnalysisUsage(AnalysisUsage& AU) const
+	{
+	    //AU.addRequired<AliasAnalysis>();
+		AU.addRequired<AAResultsWrapperPass>();
+	    AU.setPreservesAll();
+	}*/
 };
 }
 

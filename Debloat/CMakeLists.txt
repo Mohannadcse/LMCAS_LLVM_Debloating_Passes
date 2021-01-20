@@ -8,6 +8,7 @@ add_library(LLVMDebloat MODULE
   src/Utility.cpp
   src/CleaningUpStuff.cpp
   src/Predicates.cpp
+  src/PostNeckConstConversion.cpp
 )
 
 target_compile_features(LLVMDebloat PRIVATE cxx_range_for cxx_auto_type)

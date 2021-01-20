@@ -63,6 +63,7 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 			}
 		}
 	}
+//	newGlobals.emplace("rfc_email_format", 37);
 	logger << "Remaind Variables After 2nd iteration\n";
 	for (auto &&kv : newGlobals) {
 		logger << kv.first << " " << kv.second << "\n";
@@ -76,8 +77,10 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 		uint32_t bbnum = 0;
 		for (auto curB = curF->begin(), endB = curF->end(); curB != endB;
 				++curB, ++bbnum) {
-			if (visitedBbs.find(pair<string, uint64_t>(fn, bbnum)) == visitedBbs.end())
+			if (visitedBbs.find(pair<string, uint64_t>(fn, bbnum)) != visitedBbs.end()){
+//				outs() << "bypass: " << *curB << "\n";
 				continue;
+			}
 			auto curI = curB->begin(), endI = curB->end();
 			while (curI != endI) {
 				if (auto li = dyn_cast<LoadInst>(&(*curI))) {
