@@ -9,6 +9,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -117,11 +118,17 @@ map<uint64_t, pair<uint64_t, string>> populateStringVars() {
 	ifstream ifs(StringVars.c_str());
 	uint64_t ptrIdx;
 	uint64_t actualIdx;
-	string value;
+	string value, fileName;
 	std::string line;
+
 	for (int i = 0; std::getline(ifs, line); i++) {
+		//sometimes klee exports the name of the bitcode as a string
+		//I need to exclude the lines that contain the filename
+		if (i == 0){
+			fileName = line;
+			continue;
+		}
 		if (line.find(" ") != std::string::npos) {
-//			splitString(line, ' ');
 			auto tmpVect = splitString(line, ' ');
 			ptrIdx = strtoul(tmpVect[0].c_str(), nullptr, 10);
 			actualIdx = strtoul(tmpVect[1].c_str(), nullptr, 10);
@@ -129,13 +136,10 @@ map<uint64_t, pair<uint64_t, string>> populateStringVars() {
 			//i need to check the actualIdx not equal -1 before adding to the list. I already chk that in KLEE
 			//but still the string variable is exported
 			for (int c = 3; c < tmpVect.size(); c++){
-				outs() << tmpVect[c] << "\t";
 				value = value + ' ' + tmpVect[c];
 			}
 
-			outs() << "\nvalue: " << value << "\n";
-
-			if (actualIdx != -1)
+			if (actualIdx != -1 && value.find(fileName) == std::string::npos)
 				res.emplace(ptrIdx, make_pair(actualIdx, value));
 		}
 	}
@@ -255,7 +259,39 @@ struct Debloat: public ModulePass {
 	static char ID; // Pass identification, replacement for typeid
 	Debloat() : ModulePass(ID) {}
 
+
 	bool runOnModule(Module &module) override {
+
+
+		//		compute SCC for a CFG
+		 // Use LLVM's Strongly Connected Components (SCCs) iterator to produce
+		// a reverse topological sort of SCCs.
+		/*for (auto &F : module.getFunctionList()){
+					if (F.getName() == "main"){
+						outs() << "Func: " << F.getName() << "\n";
+						for (scc_iterator<Function *> I = scc_begin(&F),
+						                              IE = scc_end(&F);
+						                              I != IE; ++I) {
+						  // Obtain the vector of BBs in this SCC and print it out.
+						  const std::vector<BasicBlock *> &SCCBBs = *I;
+						  outs() << "  SCC: ";
+						  for (std::vector<BasicBlock *>::const_iterator BBI = SCCBBs.begin(),
+						                                                 BBIE = SCCBBs.end();
+						                                                 BBI != BBIE; ++BBI) {
+							  std::string Str;
+							      raw_string_ostream OS(Str);
+
+							      (*BBI)->printAsOperand(OS, false);
+
+							  outs() << OS.str() << "  ";
+						  }
+						  outs() << "\n";
+						}
+					}
+				}*/
+
+
+
 //		AliasAnalysis& AA = getAnalysis<AliasAnalysis>();
 //		AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
 		set<pair<string, uint64_t>> visitedBbs = populateBasicBlocks();
@@ -318,7 +354,6 @@ struct Debloat: public ModulePass {
 //			AliasAnalysis &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
 //			lv.testing(module);
 		}
-
 		return true;
 	}
 

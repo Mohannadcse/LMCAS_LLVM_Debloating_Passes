@@ -578,7 +578,7 @@ void LocalVariables::handleLocalPrimitiveUsesAfterNeck(Module &module,
 		for (auto i : var.first->users()) {
 			if (returnIndex(instList, cast<Instruction>(i))
 					> neckIndex(module, instList, funcName)) {
-								strLogger << "INS After neck:: " << *i << "\n";
+//								strLogger << "INS After neck:: " << *i << "\n";
 				if (auto si = dyn_cast<StoreInst>(i)) {
 					isThereStoreInst = 1;
 					break;

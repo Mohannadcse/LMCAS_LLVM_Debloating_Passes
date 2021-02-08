@@ -14,9 +14,29 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 		set<pair<string, uint64_t>> visitedBbs, string funcName) {
 	logger << "\nRun handleGlobalVariables\n";
 	//set<BasicBlock> visitedBbs = populateBasicBlocks();
-//	updateVisitedBasicBlocks(module, visitedBbs);
+	//	updateVisitedBasicBlocks(module, visitedBbs);
 
-// identify globals in this module and delete the rest
+	/*
+	for (auto &gbl : module.getGlobalList()){
+		if (gbl.getName() == "human_output_opts"){
+			if (auto intTy = dyn_cast<IntegerType>(gbl.getValueType())){
+				auto val = llvm::ConstantInt::get(intTy, 176);
+				gbl.setInitializer(val);
+				outs() << "gbl:: " <<gbl.getName() << " Val:" << *gbl.getInitializer()  << " Opr: " << *gbl.getValueType()<< "\n";
+			}
+		} else if (gbl.getName() == "output_block_size"){
+			if (auto intTy = dyn_cast<IntegerType>(gbl.getValueType())){
+				auto val = llvm::ConstantInt::get(intTy, 1);
+				gbl.setInitializer(val);
+				outs() << "gbl:: " <<gbl.getName() << " Val:" << *gbl.getInitializer()  << " Opr: " << *gbl.getValueType()<< "\n";
+				for (auto u : gbl.users())
+					outs() << "GBL USR: " << *u << "\n";
+			}
+		}
+	}
+	*/
+
+	// identify globals in this module and delete the rest
 	for (auto it = globals.cbegin(); it != globals.cend();) {
 		if (module.getGlobalVariable(it->first, true))
 			++it;
@@ -63,13 +83,22 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 			}
 		}
 	}
-//	newGlobals.emplace("rfc_email_format", 37);
+	//	newGlobals.emplace("rfc_email_format", 37);
 	logger << "Remaind Variables After 2nd iteration\n";
 	for (auto &&kv : newGlobals) {
 		logger << kv.first << " " << kv.second << "\n";
 	}
 
-// make remaining globals constant
+	/*
+	 * I created a map to store the LD instr and it's corresponding value to handle the following situation, where there are
+	 * two subsequent LD instr, so when I ReplaceInstWithValue, the counter will be incremanted and thus miss converting the 2nd LD
+	 * %11 = load i32, i32* @human_output_opts
+	 * %12 = load i64, i64* @output_block_size
+	 */
+	//
+	map<Instruction*, ConstantInt*> loadInstToReplace;
+
+	// make remaining globals constant
 	for (auto curF = module.getFunctionList().begin(), endF =
 			module.getFunctionList().end(); curF != endF; ++curF) {
 		string fn = curF->getName();
@@ -77,12 +106,8 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 		uint32_t bbnum = 0;
 		for (auto curB = curF->begin(), endB = curF->end(); curB != endB;
 				++curB, ++bbnum) {
-			if (visitedBbs.find(pair<string, uint64_t>(fn, bbnum)) != visitedBbs.end()){
-//				outs() << "bypass: " << *curB << "\n";
-				continue;
-			}
-			auto curI = curB->begin(), endI = curB->end();
-			while (curI != endI) {
+
+			for (auto curI = curB->begin(); curI != curB->end(); curI++){
 				if (auto li = dyn_cast<LoadInst>(&(*curI))) {
 					if (GlobalVariable *gvar = dyn_cast<GlobalVariable>(
 							li->getPointerOperand())) {
@@ -95,18 +120,22 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 									gvar->getType()->getElementType())) {
 								auto val = ConstantInt::get(intType,
 										it->second);
-								//							logger << "\tFOUND: " << it->first
-								//																				<< " :: " << it->second
-								//																				<< " :: " << *curI << "\n";
-								ReplaceInstWithValue(curB->getInstList(), curI,
-										val);
+
+								Instruction* in = &*curI;
+								loadInstToReplace.emplace(in, val);
 							}
 						}
 					}
 				}
-				++curI;
 			}
 		}
+	}
+
+	//replace load instr with const
+	for (auto elem : loadInstToReplace){
+		BasicBlock::iterator ii(elem.first);
+//		logger << "\tReplace: " << elem.first << " WithVal: " << elem.second->getZExtValue() << "\n";
+		ReplaceInstWithValue(elem.first->getParent()->getInstList(), ii, elem.second);
 	}
 }
 
