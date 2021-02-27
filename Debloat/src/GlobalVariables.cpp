@@ -16,6 +16,11 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 	//set<BasicBlock> visitedBbs = populateBasicBlocks();
 	//	updateVisitedBasicBlocks(module, visitedBbs);
 
+	for (auto &gbl : module.getGlobalList()){
+		if (! gbl.getName().contains("str"))
+			logger  << "gbl:: " <<gbl.getName().str() << "\n";
+	}
+
 	/*
 	for (auto &gbl : module.getGlobalList()){
 		if (gbl.getName() == "human_output_opts"){

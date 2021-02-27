@@ -49,7 +49,6 @@ void LocalVariables::initalizeInstList(Module &module, string funcName){
 uint32_t neckIndex(Module &module, vector<Instruction*> &instList, string funcName) {
 	instList.clear();
 	uint32_t neckIdx = 0;
-	//	strLogger << "Find the index of the Neck\n";
 	for (auto curF = module.getFunctionList().begin(), endF =
 			module.getFunctionList().end(); curF != endF; ++curF) {
 		string fn = curF->getName();
@@ -62,12 +61,14 @@ uint32_t neckIndex(Module &module, vector<Instruction*> &instList, string funcNa
 					Instruction *inst = &*curI;
 					instList.push_back(inst);
 					if (auto cs = dyn_cast<CallInst>(curI)) {
-						if (cs->getCalledFunction()->getName()
-								== "klee_dump_memory") {
-							neckIdx = i;
-							//strLogger << "Neck Found@: " << neckIdx << "---Size: " << instList.size() << "\n";
-							return neckIdx;
-						}
+						//if the call is indirect call then getCalledFunction returns null
+						if (cs->getCalledFunction())
+							if (cs->getCalledFunction()->getName()
+									== "klee_dump_memory") {
+								neckIdx = i;
+								//strLogger << "Neck Found@: " << neckIdx << "---Size: " << instList.size() << "\n";
+								return neckIdx;
+							}
 					}
 				}
 			}
@@ -802,7 +803,6 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 							--i;
 						}
 					}
-
 					auto id = plocals.find(std::to_string(i));
 					if (auto al = dyn_cast<llvm::AllocaInst>(curI)) {
 						if (id != plocals.end()) {
