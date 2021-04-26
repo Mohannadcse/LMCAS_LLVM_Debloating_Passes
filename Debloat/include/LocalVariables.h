@@ -31,33 +31,40 @@ private:
 	ofstream logger;
 	vector<Instruction*> instList;
 
-	void handleLocalPrimitiveUsesAfterNeck(Module &module, map<string, uint64_t> &plocals,
-			map<AllocaInst*, uint64_t> instrToIdx, vector<Instruction*> instList,
-			map<AllocaInst*, string> instrToVarName, string);
-	void handlePtrLocalStructUsesAfterNeck(Module &module,
-			map<tuple<std::string, uint64_t, int>, uint64_t> &clocals, int &a, string);
-	void handleLocalStructUsesAfterNeck(Module &module,
-			map <pair<std::string, uint64_t>, uint64_t> &, int &a, string);
-	void replaceStructPostNeck(vector<pair<GetElementPtrInst*, postNeckGepInfo>> gepInfo);
-	void inspectInitalizationPreNeck(Module& module, vector<Instruction*> instList,
-			map<tuple<string, uint64_t, int>, uint64_t> &clocals, int &, string);
-	void handleStructInOtherMethods(Function* fn, map<tuple<string, uint64_t, int>, uint64_t> &clocals, int &);
+	void handleLocalPrimitiveUsesAfterNeck(Module &, map<string, uint64_t> &,
+			map<AllocaInst*, uint64_t>, vector<Instruction*>, map<AllocaInst*, string>, string);
+	void handlePtrLocalStructUsesAfterNeck(Module &,
+			map<tuple<string, uint64_t, int>, uint64_t> &, int &, string);
+	void handleLocalStructUsesAfterNeck(Module &,
+			map <pair<string, uint64_t>, uint64_t> &, int &, string);
+	void replaceStructPostNeck(vector<pair<GetElementPtrInst*, postNeckGepInfo>> );
+	void inspectInitalizationPreNeck(Module&, vector<Instruction*>,
+			map<tuple<string, uint64_t, int>, uint64_t> &, int &, string);
+	void handleStructInOtherMethods(Function*, map<tuple<string, uint64_t, int>, uint64_t> &, int &);
+
+	bool processGepInstrStruct(llvm::GetElementPtrInst *gep,
+			tuple<string, uint64_t, int> structInfo);
+	bool processGepInstrPtrStruct(llvm::GetElementPtrInst *gep,
+			tuple<string, uint64_t, int> structInfo);
+	bool processGepInstrNestedStruct(llvm::GetElementPtrInst *mainGEP, llvm::GetElementPtrInst *elemGEP,
+			tuple<string, string, uint64_t, uint64_t, int> structInfo);
+
+	void constantConversionStrctVars(Module &, GetElementPtrInst*, string, uint64_t, raw_string_ostream &);
 
 public:
 	void testing(Module&);
 	void handleStringVars(Module&, map<uint64_t, pair<uint64_t, string>>, string);
-	void handlePrimitiveLocalVariables(Module &module, map<string, uint64_t> &plocals, string);
-	void handleStructLocalVars(Module &module, map <pair<std::string, uint64_t>, uint64_t> &structLocals, string);
-	void handlePtrToStrctLocalVars(Module &module, map <tuple<string, uint64_t, int>, uint64_t> &ptrStructLocals, string);
-	void handlePtrToPrimitiveLocalVariables(Module &module,
-			map<uint64_t, pair<uint64_t, uint64_t>> &ptrToPrimtive, string);
-	void initalizeInstList(Module &module, string);
+	void handlePrimitiveLocalVariables(Module &, map<string, uint64_t> &, string);
+	void handleStructLocalVars(Module &, map <tuple<string, uint64_t, int>, uint64_t>&, string);
+	void handlePtrToStrctLocalVars(Module &, map <tuple<string, uint64_t, int>, uint64_t> &, string);
+	void handlePtrToPrimitiveLocalVariables(Module &, map<uint64_t, pair<uint64_t, uint64_t>>&, string);
+	void handleNestedStrct(Module &, map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t>&, string);
+	void handleNestedStrctPtr(Module &, map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t>&, string);
+
+	void initalizeInstList(Module &, string);
 	LocalVariables() {
 		logger.open("logger.txt", ofstream::app);
 	}
-//	~LocalVariables(){
-//		logger << strLogger.str();
-//	}
 };
 
 

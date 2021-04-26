@@ -31,6 +31,7 @@
 #include "GlobalVariables.h"
 #include "LocalVariables.h"
 #include "Predicates.h"
+#include <string.h>
 
 #include <stdlib.h>
 
@@ -41,18 +42,30 @@ using namespace std;
 
 cl::opt<string> GlobalsFile("globals",
 		cl::desc("file containing global to constant mapping"));
+
 cl::opt<string> PrimitiveLocalsFile("plocals",
 		cl::desc("file containing primitive local to constant mapping"));
+
 cl::opt<string> PtrToPrimitiveLocalsFile("ptrToPrimLocals",
 		cl::desc("file containing pointer to primitive local to constant mapping"));
+
 cl::opt<string> PtrStrctLocalsFile("ptrStructlocals",
 		cl::desc("file containing customized local to constant mapping"));
+
+cl::opt<string> nestedStrctsFile("nestedStrcts",
+		cl::desc("file containing nested structs to constant mapping"));
+
 cl::opt<string> StringVars("stringVars",
 		cl::desc("file containing mapping of string variables"));
+
 cl::opt<string> CustomizedLocalsFile("clocals",
 		cl::desc("file containing customized local to constant mapping"));
+
 cl::opt<string> BBFile("bbfile",
 		cl::desc("file containing visited basic blocks"));
+
+cl::opt<string> appName("appName",
+		cl::desc("specify the name of the app under analysis"));
 
 cl::opt<bool> SimplifyPredicates("simplifyPredicate", llvm::cl::desc(""),
 		llvm::cl::init(false));
@@ -78,9 +91,8 @@ set<pair<string, uint64_t>> populateBasicBlocks() {
 map<string, uint64_t> populateGobals() {
 	map<string, uint64_t> res;
 	ifstream ifs(GlobalsFile.c_str());
-	string name;
 	uint64_t value;
-	std::string line;
+	string line, name;
 	for (int i = 0; std::getline(ifs, line); i++) {
 		if (line.find(" ") != std::string::npos) {
 			splitString(line, ' ');
@@ -99,7 +111,7 @@ map<uint64_t, pair<uint64_t, uint64_t>> populatePtrPrimitiveLocals() {
 	uint64_t ptrIdx;
 	uint64_t actualIdx;
 	uint64_t value;
-	std::string line;
+	string line;
 	for (int i = 0; std::getline(ifs, line); i++) {
 		if (line.find(" ") != std::string::npos) {
 			splitString(line, ' ');
@@ -113,45 +125,52 @@ map<uint64_t, pair<uint64_t, uint64_t>> populatePtrPrimitiveLocals() {
 	return res;
 }
 
+
+
+string getAppName() {
+	string app = appName.c_str();
+	return app;
+}
+
 map<uint64_t, pair<uint64_t, string>> populateStringVars() {
 	map<uint64_t, pair<uint64_t, string>> res;
 	ifstream ifs(StringVars.c_str());
 	uint64_t ptrIdx;
 	uint64_t actualIdx;
-	string value, fileName;
-	std::string line;
-
+	string value, fileName, line;
 	for (int i = 0; std::getline(ifs, line); i++) {
 		//sometimes klee exports the name of the bitcode as a string
 		//I need to exclude the lines that contain the filename
-		if (i == 0){
+		/*if (i == 0){
 			fileName = line;
 			continue;
-		}
-		if (line.find(" ") != std::string::npos) {
-			auto tmpVect = splitString(line, ' ');
-			ptrIdx = strtoul(tmpVect[0].c_str(), nullptr, 10);
-			actualIdx = strtoul(tmpVect[1].c_str(), nullptr, 10);
-			value = tmpVect[2];//strtoul(tmpVect[2].c_str(), nullptr, 10);
-			//i need to check the actualIdx not equal -1 before adding to the list. I already chk that in KLEE
-			//but still the string variable is exported
-			for (int c = 3; c < tmpVect.size(); c++){
-				value = value + ' ' + tmpVect[c];
-			}
+		}*/
+		if (strstr(line.c_str(), getAppName().c_str()) == NULL)
 
-			if (actualIdx != -1 && value.find(fileName) == std::string::npos)
+			if (line.find(" ") != std::string::npos) {
+				auto tmpVect = splitString(line, ' ');
+				ptrIdx = strtoul(tmpVect[0].c_str(), nullptr, 10);
+				actualIdx = strtoul(tmpVect[1].c_str(), nullptr, 10);
+				value = tmpVect[2];//strtoul(tmpVect[2].c_str(), nullptr, 10);
+				//i need to check the actualIdx not equal -1 before adding to the list. I already chk that in KLEE
+				//but still the string variable is exported
+				for (int c = 3; c < tmpVect.size(); c++){
+					value = value + ' ' + tmpVect[c];
+				}
+
+				//if (actualIdx != -1 && value.find(fileName) == std::string::npos)
 				res.emplace(ptrIdx, make_pair(actualIdx, value));
-		}
+			}
 	}
+	outs() << "STR_SIZE: " << res.size() << "\n";
 	return res;
 }
 
 map<string, uint64_t> populatePrimitiveLocals() {
 	map<string, uint64_t> res;
 	ifstream ifs(PrimitiveLocalsFile.c_str());
-	std::string name;
 	uint64_t value;
-	std::string line;
+	string line, name;
 	for (int i = 0; std::getline(ifs, line); i++) {
 		if (line.find(" ") != std::string::npos) {
 			splitString(line, ' ');
@@ -164,12 +183,12 @@ map<string, uint64_t> populatePrimitiveLocals() {
 	return res;
 }
 
-map <std::tuple<std::string, uint64_t, int>, uint64_t> populatePtrStrctLocals() {
-	map <tuple<std::string, uint64_t, int>, uint64_t> ret;
+map <tuple<string, uint64_t, int>, uint64_t> populatePtrStrctLocals() {
+	map <tuple<string, uint64_t, int>, uint64_t> ret;
 
 	ifstream ifs(PtrStrctLocalsFile.c_str());
 	uint64_t value, structElem;
-	std::string line, structName;
+	string line, structName;
 	int allocIdx;
 
 	for (int i = 0; std::getline(ifs, line); i++) {
@@ -186,12 +205,13 @@ map <std::tuple<std::string, uint64_t, int>, uint64_t> populatePtrStrctLocals() 
 	return ret;
 }
 
-map <pair<std::string, uint64_t>, uint64_t> populateStructLocals() {
-	map <pair<std::string, uint64_t>, uint64_t> ret;
+map <tuple<string, uint64_t, int>, uint64_t> populateStructLocals() {
+	map <tuple<string, uint64_t, int>, uint64_t> ret;
 
 	ifstream ifs(CustomizedLocalsFile.c_str());
 	uint64_t value, structElem;
-	std::string line, structName;
+	string line, structName;
+	int allocIdx;
 
 	for (int i = 0; std::getline(ifs, line); i++) {
 		if (line.find(" ") != std::string::npos) {
@@ -200,10 +220,39 @@ map <pair<std::string, uint64_t>, uint64_t> populateStructLocals() {
 			structName = tmpVect[0];
 			structElem = strtoul(tmpVect[1].c_str(), nullptr, 10);
 			value = strtoul(tmpVect[2].c_str(), nullptr, 10);
-			ret.emplace(make_pair(structName, structElem), value);
+			allocIdx = atoi(tmpVect[3].c_str());
+			ret.emplace(make_tuple(structName, structElem, allocIdx), value);
 		}
 	}
 	return ret;
+}
+
+//mainStrct-idxInMainStrct-structElem-idxStructElem-value--isPtrElem
+void populateNestedStructLocals(map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t> *nestedStrctNoPtr,
+		map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t> *nestedStrctPtr) {
+
+	ifstream ifs(nestedStrctsFile.c_str());
+	uint64_t idxInMainStrct, idxStructElem, value, isPtrElem;
+	std::string line, mainStrct, structElem;
+	int allocIdx;
+
+	for (int i = 0; std::getline(ifs, line); i++) {
+			if (line.find(" ") != std::string::npos) {
+				auto tmpVect = splitString(line, ' ');
+				mainStrct = tmpVect[0];
+				structElem = tmpVect[2];
+				idxInMainStrct = strtoul(tmpVect[1].c_str(), nullptr, 10);
+				idxStructElem = strtoul(tmpVect[3].c_str(), nullptr, 10);
+				value = strtoul(tmpVect[4].c_str(), nullptr, 10);
+				isPtrElem = strtoul(tmpVect[5].c_str(), nullptr, 10);
+				allocIdx = strtoul(tmpVect[6].c_str(), nullptr, 10);
+				if (isPtrElem == 1){
+					nestedStrctPtr->emplace(make_tuple(mainStrct, structElem, idxInMainStrct, idxStructElem, allocIdx), value);
+				} else {
+					nestedStrctNoPtr->emplace(make_tuple(mainStrct, structElem, idxInMainStrct, idxStructElem, allocIdx), value);
+				}
+			}
+	}
 }
 
 string findTheNeck(Module &module){
@@ -240,7 +289,7 @@ void updateVisitedBasicBlocks(Module &module, set<pair<string, uint64_t>> &visit
 				if (CallInst *callSite = dyn_cast<CallInst>(I)) {
 					if (callSite->getCalledFunction()
 							&& callSite->getCalledFunction()->getName()
-									== "klee_dump_memory") {
+							== "klee_dump_memory") {
 						goto updateBB;
 					}
 				}
@@ -264,7 +313,7 @@ struct Debloat: public ModulePass {
 
 
 		//		compute SCC for a CFG
-		 // Use LLVM's Strongly Connected Components (SCCs) iterator to produce
+		// Use LLVM's Strongly Connected Components (SCCs) iterator to produce
 		// a reverse topological sort of SCCs.
 		/*for (auto &F : module.getFunctionList()){
 					if (F.getName() == "main"){
@@ -292,67 +341,82 @@ struct Debloat: public ModulePass {
 
 
 
-//		AliasAnalysis& AA = getAnalysis<AliasAnalysis>();
-//		AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
-		set<pair<string, uint64_t>> visitedBbs = populateBasicBlocks();
-		updateVisitedBasicBlocks(module, visitedBbs);
-		map<string, uint64_t> globals = populateGobals();
-		map<string, uint64_t> plocals = populatePrimitiveLocals();
-		map<uint64_t, pair<uint64_t, uint64_t>> ptrPrimLocals = populatePtrPrimitiveLocals();
-		map<uint64_t, pair<uint64_t, string>> strVars = populateStringVars();
-		map <std::tuple<std::string, uint64_t, int>, uint64_t> ptrStrLocals = populatePtrStrctLocals();
-		map <pair<std::string, uint64_t>, uint64_t> structLocals = populateStructLocals();
+		//		AliasAnalysis& AA = getAnalysis<AliasAnalysis>();
+		//		AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
+		if (!CleaningUp){
+			set<pair<string, uint64_t>> visitedBbs = populateBasicBlocks();
+			updateVisitedBasicBlocks(module, visitedBbs);
+			map<string, uint64_t> globals = populateGobals();
+			map<string, uint64_t> plocals = populatePrimitiveLocals();
+			map<uint64_t, pair<uint64_t, uint64_t>> ptrPrimLocals = populatePtrPrimitiveLocals();
+			map<uint64_t, pair<uint64_t, string>> strVars = populateStringVars();
+			map <tuple<std::string, uint64_t, int>, uint64_t> ptrStrLocals = populatePtrStrctLocals();
+			map <tuple<std::string, uint64_t, int>, uint64_t> structLocals = populateStructLocals();
 
-		string funcName = findTheNeck(module);
-		outs() << "NECK is found: " << funcName <<"\n";
+			map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t> nestedStrctNoPtr, nestedStrctPtr;
+			populateNestedStructLocals(&nestedStrctNoPtr, &nestedStrctPtr);
 
-		LocalVariables lv;
-		lv.initalizeInstList(module, funcName);
-//		lv.testing(module);
+			string funcName = findTheNeck(module);
+			outs() << "NECK is found: " << funcName <<"\n";
 
-		if (globals.size() != 0) {
-			outs() << "\nConvert global variables: " << globals.size() << "\n";
-			GlobalVariables gv;
-			gv.handleGlobalVariables(module, globals, visitedBbs, funcName);
+			LocalVariables lv;
+			lv.initalizeInstList(module, funcName);
+			//		lv.testing(module);
+
+			if (globals.size() != 0) {
+				outs() << "\nConvert global variables: " << globals.size() << "\n";
+				GlobalVariables gv;
+				gv.handleGlobalVariables(module, globals, visitedBbs, funcName);
+			}
+
+			if (plocals.size() != 0) {
+				outs() << "\nConvert Primitive Locals: " << plocals.size() << "\n";
+				lv.handlePrimitiveLocalVariables(module, plocals, funcName);
+			}
+
+			if (ptrPrimLocals.size() != 0){
+				outs() << "\nConvert Pointer Primitive Locals: " << ptrPrimLocals.size() << "\n";
+				lv.handlePtrToPrimitiveLocalVariables(module, ptrPrimLocals, funcName);
+			}
+
+			if (structLocals.size() != 0){
+				outs() << "\nConvert Struct to Locals: " << structLocals.size() << "\n";
+				lv.handleStructLocalVars(module, structLocals, funcName);
+			}
+
+			if (ptrStrLocals.size() != 0){
+				outs() << "\nConvert pointer to struct Locals: " << ptrStrLocals.size() << "\n";
+				lv.handlePtrToStrctLocalVars(module, ptrStrLocals, funcName);
+			}
+
+			if (strVars.size() != 0){
+				outs() << "\nConvert string variables: " << strVars.size() << "\n";
+				lv.handleStringVars(module, strVars, funcName);
+			}
+
+			if (nestedStrctNoPtr.size() != 0){
+				outs() << "\nConvert nested struct (no ptr) variables: " << nestedStrctNoPtr.size() << "\n";
+				lv.handleNestedStrct(module, nestedStrctNoPtr, funcName);
+			}
+
+			if (nestedStrctPtr.size() != 0){
+				outs() << "\nConvert nested struct ptr variables: " << nestedStrctPtr.size() << "\n";
+				lv.handleNestedStrctPtr(module, nestedStrctPtr, funcName);
+			}
 		}
 
-		if (plocals.size() != 0) {
-			outs() << "\nConvert Primitive Locals: " << plocals.size() << "\n";
-			lv.handlePrimitiveLocalVariables(module, plocals, funcName);
-		}
-
-		if (ptrPrimLocals.size() != 0){
-			outs() << "\nConvert Pointer Primitive Locals: " << ptrPrimLocals.size() << "\n";
-			lv.handlePtrToPrimitiveLocalVariables(module, ptrPrimLocals, funcName);
-		}
-
-		if (structLocals.size() != 0){
-			outs() << "\nConvert Struct to Locals: " << structLocals.size() << "\n";
-			lv.handleStructLocalVars(module, structLocals, funcName);
-		}
-
-		if (ptrStrLocals.size() != 0){
-			outs() << "\nConvert pointer to struct Locals: " << ptrStrLocals.size() << "\n";
-			lv.handlePtrToStrctLocalVars(module, ptrStrLocals, funcName);
-		}
-
-		if (strVars.size() != 0){
-			outs() << "\nConvert string variables: " << strVars.size() << "\n";
-			lv.handleStringVars(module, strVars, funcName);
-		}
-
-//		SimplifyPredicates = true;
-//		if (SimplifyPredicates) {
-//			outs() << "Simplifying Predicates is enabled\n";
-//						Predicates p;
-//						p.handlePredicates(module);
-//		}
+		//		SimplifyPredicates = true;
+		//		if (SimplifyPredicates) {
+		//			outs() << "Simplifying Predicates is enabled\n";
+		//						Predicates p;
+		//						p.handlePredicates(module);
+		//		}
 
 		if (CleaningUp) {
 			CleaningUpStuff cp;
 			cp.removeUnusedStuff(module);
-//			AliasAnalysis &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
-//			lv.testing(module);
+			//			AliasAnalysis &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
+			//			lv.testing(module);
 		}
 		return true;
 	}
