@@ -47,9 +47,9 @@ private:
 	bool processGepInstrPtrStruct(llvm::GetElementPtrInst *gep,
 			tuple<string, uint64_t, int> structInfo);
 	bool processGepInstrNestedStruct(llvm::GetElementPtrInst *mainGEP, llvm::GetElementPtrInst *elemGEP,
-			tuple<string, string, uint64_t, uint64_t, int> structInfo);
+			tuple<string, string, uint64_t, uint64_t, int> structInfo, int flag);
 
-	void constantConversionStrctVars(Module &, GetElementPtrInst*, string, uint64_t, raw_string_ostream &);
+	void constantConversionStrctVars(Module &, GetElementPtrInst*, string, uint64_t, raw_string_ostream &, int cntxtFlg);
 
 public:
 	void testing(Module&);

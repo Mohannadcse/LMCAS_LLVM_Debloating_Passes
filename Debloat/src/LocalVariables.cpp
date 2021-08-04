@@ -10,6 +10,7 @@
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Use.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/Analysis/AliasSetTracker.h"
 
 //#include "llvm/IR/DerivedTypes.h"
@@ -120,14 +121,21 @@ bool LocalVariables::processGepInstrStruct(llvm::GetElementPtrInst *gep,
 	return ret;
 }
 
+/*
+ * cntxtFlg is used to recognize different contexts where this function is called. This flag is also used for handling
+ * variables called by address when their address are passed as parameters
+ */
 bool LocalVariables::processGepInstrNestedStruct(llvm::GetElementPtrInst *mainGEP, llvm::GetElementPtrInst *elemGEP,
-		tuple<string, string, uint64_t, uint64_t, int> structInfo) {
+		tuple<string, string, uint64_t, uint64_t, int> structInfo, int cntxtFlg) {
 	bool ret = false;
 	if (mainGEP->getNumOperands() == 3 && elemGEP->getNumOperands() == 3){
 		auto opr0TypeMain = dyn_cast<PointerType>(mainGEP->getOperand(0)->getType());
 		auto opr0InstrAllocMain = dyn_cast<AllocaInst>(mainGEP->getOperand(0));
 		auto opr0TypeElem = dyn_cast<PointerType>(elemGEP->getOperand(0)->getType());
-
+		if (!cntxtFlg){
+			auto opr0InstrLoadMain = dyn_cast<LoadInst>(mainGEP->getOperand(0));
+			opr0InstrAllocMain = dyn_cast<AllocaInst>(opr0InstrLoadMain->getOperand(0));
+		}
 		if (opr0TypeMain && opr0InstrAllocMain && opr0TypeElem){
 			auto ptMain = dyn_cast<StructType>(opr0TypeMain->getElementType());
 			auto ptElem = dyn_cast<StructType>(opr0TypeElem->getElementType());
@@ -135,10 +143,13 @@ bool LocalVariables::processGepInstrNestedStruct(llvm::GetElementPtrInst *mainGE
 				auto op2Main = dyn_cast<ConstantInt>(mainGEP->getOperand(2));
 				auto op2Elem = dyn_cast<ConstantInt>(elemGEP->getOperand(2));
 				if (op2Main && op2Elem){
+					bool idx = returnIndex(instList, cast<Instruction>(opr0InstrAllocMain)) == get<4>(structInfo);
+					if (!cntxtFlg) idx = 1;
+
 					if (ptMain->getStructName() == get<0>(structInfo) && ptElem->getStructName() == get<1>(structInfo)
 							&& op2Main->getValue().getZExtValue() == get<2>(structInfo)
 							&& op2Elem->getValue().getZExtValue() == get<3>(structInfo)
-							&& returnIndex(instList, cast<Instruction>(opr0InstrAllocMain)) == get<4>(structInfo))
+							&& idx)
 						ret = true;
 					else
 						ret = false;
@@ -150,10 +161,12 @@ bool LocalVariables::processGepInstrNestedStruct(llvm::GetElementPtrInst *mainGE
 }
 
 void LocalVariables::constantConversionStrctVars(Module &module, GetElementPtrInst* elemGEP, string funcName,
-		uint64_t value, raw_string_ostream &strLogger){
+		uint64_t value, raw_string_ostream &strLogger, int cntxtFlg){
 	for (auto usr : elemGEP->users()) {
 		if (auto si = dyn_cast<StoreInst>(usr)) {
-			if (returnIndex(instList, si) < neckIndex(module, instList, funcName))
+			bool idx = returnIndex(instList, si) < neckIndex(module, instList, funcName);
+			if (! cntxtFlg) idx = 1;
+			if (idx)
 				if (auto ci = dyn_cast<ConstantInt>(
 						si->getOperand(0))) {
 					strLogger << "ElemGEP: " << *elemGEP << "\n";
@@ -185,11 +198,13 @@ void LocalVariables::constantConversionStrctVars(Module &module, GetElementPtrIn
 void LocalVariables::handleNestedStrct(Module &module, map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t>&vars, string funcName){
 	string str;
 	raw_string_ostream strLogger(str);
-	strLogger << "*****\nStart Converting nested struct (no PTR) locals to constant\n";
+	set<Instruction*> strctAlloc;
 
+	strLogger << "*****\nStart Converting nested struct (no PTR) locals to constant\n";
 	for (auto elem : vars) {
 		strLogger << "ELEM:: " << get<0>(elem.first) << " " << get<1>(elem.first) << " " << get<2>(elem.first)
-								<< " " << get<3>(elem.first) << " " << get<4>(elem.first) <<"\n";
+																								<< " " << get<3>(elem.first) << " " << *instList[get<4>(elem.first)] <<"\n";
+
 		for (auto curF = module.getFunctionList().begin();
 				curF != module.getFunctionList().end(); curF++) {
 			string fn = curF->getName();
@@ -198,33 +213,37 @@ void LocalVariables::handleNestedStrct(Module &module, map <tuple<string, string
 					if (auto* mainGEP = dyn_cast<GetElementPtrInst>(&*curI)){
 						for (auto usr : mainGEP->users()){
 							if (auto elemGEP = dyn_cast<GetElementPtrInst>(usr))
-								if (processGepInstrNestedStruct(mainGEP, elemGEP, elem.first))
-									constantConversionStrctVars(module, elemGEP, funcName, elem.second, strLogger);
-							//the following code is similar to handleStructLocalVars
-							/*for (auto usr : elemGEP->users()) {
-										if (auto si = dyn_cast<StoreInst>(usr)) {
-											if (returnIndex(instList, si) < neckIndex(module, instList, funcName))
-												if (auto ci = dyn_cast<ConstantInt>(
-														si->getOperand(0))) {
-													strLogger << "MainGEP: " << *mainGEP << "\n";
-													strLogger << "ElemGEP: " << *elemGEP << "\n";
-													strLogger << "\tuser of GEP: " << *usr << "\n";
-													auto val =
-															ConstantInt::get(
-																	si->getOperand(
-																			0)->getType(),
-																			elem.second);
-													StoreInst *str = new StoreInst(
-															val, si->getOperand(1));
-													strLogger
-													<< "\tSI uses GEP replace \n\t\tFROM: " << *si << "\tTO: " << *str <<"\n";
-													ReplaceInstWithInst(si, str);
-												}
-										}
-									}*/
+								if (processGepInstrNestedStruct(mainGEP, elemGEP, elem.first,1))
+									constantConversionStrctVars(module, elemGEP, funcName, elem.second, strLogger, 1);
 						}
 					}
 				}
+
+				for (auto usr : instList[get<4>(elem.first)]->users())
+					if (auto callInst = dyn_cast<CallInst>(usr)){
+						strLogger << "Found user: " << *callInst << "\n";
+						if (returnIndex(instList, callInst) < neckIndex(module, instList, funcName)){
+							int c = 0;
+							for (auto arg = callInst->arg_begin(); arg != callInst->arg_end(); arg++, c++){
+								if (instList[get<4>(elem.first)] == *arg){
+									strLogger << "\tattr: " << callInst->paramHasAttr(c, Attribute::ByVal) << "\n";
+									if (!callInst->paramHasAttr(c, Attribute::ByVal)){
+										strLogger << "found call by address\n";
+										for (auto curI = inst_begin(*callInst->getCalledFunction()); curI != inst_end(*callInst->getCalledFunction()); curI++){
+											if (auto* mainGEP = dyn_cast<GetElementPtrInst>(&*curI)){
+												for (auto usr : mainGEP->users()){
+													if (auto elemGEP = dyn_cast<GetElementPtrInst>(usr)){
+														if (processGepInstrNestedStruct(mainGEP, elemGEP, elem.first, 0))
+															constantConversionStrctVars(module, elemGEP, funcName, elem.second, strLogger, 0);
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 			}
 		}
 	}
@@ -260,9 +279,8 @@ void LocalVariables::handleNestedStrctPtr(Module &module, map <tuple<string, str
 							if (auto ld = dyn_cast<LoadInst>(usr))
 								for (auto ldUser : ld->users())
 									if (auto* elemGEP = dyn_cast<GetElementPtrInst>(ldUser))
-										if (processGepInstrNestedStruct(mainGEP, elemGEP, elem.first)){
-											constantConversionStrctVars(module, elemGEP, funcName, elem.second, strLogger);
-										}
+										if (processGepInstrNestedStruct(mainGEP, elemGEP, elem.first, 2))
+											constantConversionStrctVars(module, elemGEP, funcName, elem.second, strLogger, 2);
 						}
 					}
 				}
@@ -776,7 +794,7 @@ void LocalVariables::handleLocalPrimitiveUsesAfterNeck(Module &module,
 									<< var.second << " :: " << *i << "\n";
 							//ReplaceInstWithValue(ld->getParent()->getInstList(), ld, val);
 							ld->replaceAllUsesWith(val);
-							//							ld->eraseFromParent(); //TODO this stmt causes the problem. Woork around is putting the ld inst that should be removed in a vector and then iterate the elements of the vector to remove the instr
+							//							ld->eraseFromParent(); //TODO this stmt causes the problem. Work around is putting the ld inst that should be removed in a vector and then iterate the elements of the vector to remove the instr
 						}
 				}
 			}
