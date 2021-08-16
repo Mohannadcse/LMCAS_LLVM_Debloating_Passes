@@ -401,7 +401,7 @@ struct Debloat: public ModulePass {
 
 			if (nestedStrctPtr.size() != 0){
 				outs() << "\nConvert nested struct ptr variables: " << nestedStrctPtr.size() << "\n";
-				lv.handleNestedStrctPtr(module, nestedStrctPtr, funcName);
+				lv.handlePtrToNestedStrct(module, nestedStrctPtr, funcName);
 			}
 		}
 
