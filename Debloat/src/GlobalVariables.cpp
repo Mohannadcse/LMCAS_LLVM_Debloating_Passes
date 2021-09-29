@@ -8,8 +8,6 @@
 #include "GlobalVariables.h"
 
 
-//typedef pair<string, uint64_t> BasicBlocks;
-
 void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t> &globals,
 		set<pair<string, uint64_t>> visitedBbs, string funcName) {
 	logger << "\nRun handleGlobalVariables\n";
@@ -20,27 +18,6 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 		if (! gbl.getName().contains("str"))
 			logger  << "gbl:: " <<gbl.getName().str() << "\n";
 	}
-
-	/*
-	for (auto &gbl : module.getGlobalList()){
-		if (gbl.getName() == "human_output_opts"){
-			if (auto intTy = dyn_cast<IntegerType>(gbl.getValueType())){
-				auto val = llvm::ConstantInt::get(intTy, 176);
-				gbl.setInitializer(val);
-				outs() << "gbl:: " <<gbl.getName() << " Val:" << *gbl.getInitializer()  << " Opr: " << *gbl.getValueType()<< "\n";
-			}
-		} else if (gbl.getName() == "output_block_size"){
-			if (auto intTy = dyn_cast<IntegerType>(gbl.getValueType())){
-				auto val = llvm::ConstantInt::get(intTy, 1);
-				gbl.setInitializer(val);
-				outs() << "gbl:: " <<gbl.getName() << " Val:" << *gbl.getInitializer()  << " Opr: " << *gbl.getValueType()<< "\n";
-				for (auto u : gbl.users())
-					outs() << "GBL USR: " << *u << "\n";
-			}
-		}
-	}
-	*/
-
 	// identify globals in this module and delete the rest
 	for (auto it = globals.cbegin(); it != globals.cend();) {
 		if (module.getGlobalVariable(it->first, true))
