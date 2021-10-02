@@ -13,85 +13,97 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/Analysis/AliasSetTracker.h"
 
-//#include "llvm/IR/DerivedTypes.h"
-
-int returnIndex(std::vector<Instruction*> list, Instruction *inst) {
+int returnIndex(std::vector<Instruction *> list, Instruction *inst)
+{
 	int i = -1;
-	//	outs() << "TryingToFind inst: " << *inst << " --ListSize= " << list.size() << "\n";
 	auto it = find(list.begin(), list.end(), inst);
-	if (it != list.cend()) {
+	if (it != list.cend())
+	{
 		i = std::distance(list.begin(), it);
 	}
 	return i;
 }
 
-void LocalVariables::initalizeInstList(Module &module, string funcName){
+void LocalVariables::initalizeInstList(Module &module, string funcName)
+{
 	for (auto curF = module.getFunctionList().begin(), endF =
-			module.getFunctionList().end(); curF != endF; ++curF) {
+														   module.getFunctionList().end();
+		 curF != endF; ++curF)
+	{
 		string fn = curF->getName();
-		if (fn == funcName) {
+		if (fn == funcName)
+		{
 			uint64_t i = 0;
 			for (auto curB = curF->begin(); curB != curF->end(); curB++)
 				for (auto curI = curB->begin(); curI != curB->end();
-						curI++, i++) {
+					 curI++, i++)
+				{
 					Instruction *inst = &*curI;
 					instList.push_back(inst);
 					if (auto cs = dyn_cast<CallInst>(curI))
 						if (cs->getCalledFunction())
-							if (cs->getCalledFunction()->getName()
-									== "klee_dump_memory")
+							if (cs->getCalledFunction()->getName() == "klee_dump_memory")
 								break;
 				}
 		}
 	}
 }
 
-uint32_t neckIndex(Module &module, vector<Instruction*> &instList, string funcName) {
+uint32_t neckIndex(Module &module, vector<Instruction *> &instList,
+				   string funcName)
+{
 	instList.clear();
-	uint32_t neckIdx = 0;
+	uint32_t neckIdxInst = 0;
 	for (auto curF = module.getFunctionList().begin(), endF =
-			module.getFunctionList().end(); curF != endF; ++curF) {
+														   module.getFunctionList().end();
+		 curF != endF; ++curF)
+	{
 		string fn = curF->getName();
-		if (fn == funcName) {
+		if (fn == funcName)
+		{
 			uint64_t i = 0;
 			//identify the index of the neck
-			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
+			for (auto curB = curF->begin(); curB != curF->end(); curB++)
+			{
 				for (auto curI = curB->begin(); curI != curB->end();
-						curI++, i++) {
+					 curI++, i++)
+				{
 					Instruction *inst = &*curI;
 					instList.push_back(inst);
-					if (auto cs = dyn_cast<CallInst>(curI)) {
+					if (auto cs = dyn_cast<CallInst>(curI))
+					{
 						//if the call is indirect call then getCalledFunction returns null
 						if (cs->getCalledFunction())
-							if (cs->getCalledFunction()->getName()
-									== "klee_dump_memory") {
-								neckIdx = i;
-								//strLogger << "Neck Found@: " << neckIdx << "---Size: " << instList.size() << "\n";
-								return neckIdx;
+							if (cs->getCalledFunction()->getName() == "klee_dump_memory")
+							{
+								neckIdxInst = i;
+								//strLogger << "Neck Found@: " << neckIdxInst << "---Size: " << instList.size() << "\n";
+								return neckIdxInst;
 							}
 					}
 				}
 			}
 		}
 	}
-	return neckIdx;
+	return neckIdxInst;
 }
 
 /*
- * this method checks if the gep is matching any of the pointer to struct variables that KLEE captured
+ * this method checks if the gep is matching any of the pointer to struct variables
  */
 bool LocalVariables::processGepInstrPtrStruct(llvm::GetElementPtrInst *gep,
-		tuple<string, uint64_t, int> structInfo) {
+											  tuple<string, uint64_t, int> structInfo)
+{
 	bool ret = false;
-	if (gep->getNumOperands() == 3){
+	if (gep->getNumOperands() == 3)
+	{
 		auto opr0Type = dyn_cast<PointerType>(gep->getOperand(0)->getType());
-		auto opr0InstrLD = dyn_cast<llvm::LoadInst>(gep->getOperand(0)); //to handle pointer to struct
-		if (opr0Type && opr0InstrLD){
+		auto opr0InstrLD = dyn_cast<LoadInst>(gep->getOperand(0)); //to handle pointer to struct
+		if (opr0Type && opr0InstrLD)
+		{
 			if (auto pt = dyn_cast<StructType>(opr0Type->getElementType()))
 				if (auto op2 = dyn_cast<ConstantInt>(gep->getOperand(2)))
-					if (pt->getStructName() == get<0>(structInfo)
-							&& op2->getValue().getZExtValue() == get<1>(structInfo)
-							&& returnIndex(instList, cast<Instruction>(opr0InstrLD->getPointerOperand())) == get<2>(structInfo))
+					if (pt->getStructName() == get<0>(structInfo) && op2->getValue().getZExtValue() == get<1>(structInfo) && returnIndex(instList, cast<Instruction>(opr0InstrLD->getPointerOperand())) == get<2>(structInfo))
 						ret = true;
 					else
 						ret = false;
@@ -101,17 +113,19 @@ bool LocalVariables::processGepInstrPtrStruct(llvm::GetElementPtrInst *gep,
 }
 
 bool LocalVariables::processGepInstrStruct(llvm::GetElementPtrInst *gep,
-		tuple<string, uint64_t, int> structInfo) {
+										   tuple<string, uint64_t, int> structInfo)
+{
 	bool ret = false;
-	if (gep->getNumOperands() == 3){
+	if (gep->getNumOperands() == 3)
+	{
 		auto opr0Type = dyn_cast<PointerType>(gep->getOperand(0)->getType());
 		auto opr0InstrAlloc = dyn_cast<AllocaInst>(gep->getOperand(0));
-		if (opr0Type && opr0InstrAlloc){
+		if (opr0Type && opr0InstrAlloc)
+		{
 			if (auto pt = dyn_cast<StructType>(opr0Type->getElementType()))
-				if (auto op2 = dyn_cast<ConstantInt>(gep->getOperand(2))){
-					if (pt->getStructName() == get<0>(structInfo)
-							&& op2->getValue().getZExtValue() == get<1>(structInfo)
-							&& returnIndex(instList, cast<Instruction>(opr0InstrAlloc)) == get<2>(structInfo))
+				if (auto op2 = dyn_cast<ConstantInt>(gep->getOperand(2)))
+				{
+					if (pt->getStructName() == get<0>(structInfo) && op2->getValue().getZExtValue() == get<1>(structInfo) && returnIndex(instList, cast<Instruction>(opr0InstrAlloc)) == get<2>(structInfo))
 						ret = true;
 					else
 						ret = false;
@@ -126,31 +140,41 @@ bool LocalVariables::processGepInstrStruct(llvm::GetElementPtrInst *gep,
  * variables called by address when their address are passed as parameters, so we don't need to check the neck location
  * we achieve this by setting the value of this flag to zero
  */
-bool LocalVariables::processGepInstrNestedStruct(llvm::GetElementPtrInst *mainGEP, llvm::GetElementPtrInst *elemGEP,
-		tuple<string, string, uint64_t, uint64_t, int> structInfo, int cntxtFlg) {
+bool LocalVariables::processGepInstrNestedStruct(
+	llvm::GetElementPtrInst *mainGEP, llvm::GetElementPtrInst *elemGEP,
+	tuple<string, string, uint64_t, uint64_t, int> structInfo,
+	int cntxtFlg)
+{
 	bool ret = false;
-	if (mainGEP->getNumOperands() == 3 && elemGEP->getNumOperands() == 3){
-		auto opr0TypeMain = dyn_cast<PointerType>(mainGEP->getOperand(0)->getType());
+	if (mainGEP->getNumOperands() == 3 && elemGEP->getNumOperands() == 3)
+	{
+		auto opr0TypeMain = dyn_cast<PointerType>(
+			mainGEP->getOperand(0)->getType());
 		auto opr0InstrAllocMain = dyn_cast<AllocaInst>(mainGEP->getOperand(0));
-		auto opr0TypeElem = dyn_cast<PointerType>(elemGEP->getOperand(0)->getType());
-		if (!cntxtFlg){
+		auto opr0TypeElem = dyn_cast<PointerType>(
+			elemGEP->getOperand(0)->getType());
+		if (!cntxtFlg)
+		{
 			auto opr0InstrLoadMain = dyn_cast<LoadInst>(mainGEP->getOperand(0));
-			opr0InstrAllocMain = dyn_cast<AllocaInst>(opr0InstrLoadMain->getOperand(0));
+			opr0InstrAllocMain = dyn_cast<AllocaInst>(
+				opr0InstrLoadMain->getOperand(0));
 		}
-		if (opr0TypeMain && opr0InstrAllocMain && opr0TypeElem){
+		if (opr0TypeMain && opr0InstrAllocMain && opr0TypeElem)
+		{
 			auto ptMain = dyn_cast<StructType>(opr0TypeMain->getElementType());
 			auto ptElem = dyn_cast<StructType>(opr0TypeElem->getElementType());
-			if (ptMain && ptElem){
+			if (ptMain && ptElem)
+			{
 				auto op2Main = dyn_cast<ConstantInt>(mainGEP->getOperand(2));
 				auto op2Elem = dyn_cast<ConstantInt>(elemGEP->getOperand(2));
-				if (op2Main && op2Elem){
-					bool idx = returnIndex(instList, cast<Instruction>(opr0InstrAllocMain)) == get<4>(structInfo);
-					if (!cntxtFlg) idx = 1;
+				if (op2Main && op2Elem)
+				{
+					bool idxInst = returnIndex(instList,
+											   cast<Instruction>(opr0InstrAllocMain)) == get<4>(structInfo);
+					if (!cntxtFlg)
+						idxInst = 1;
 
-					if (ptMain->getStructName() == get<0>(structInfo) && ptElem->getStructName() == get<1>(structInfo)
-							&& op2Main->getValue().getZExtValue() == get<2>(structInfo)
-							&& op2Elem->getValue().getZExtValue() == get<3>(structInfo)
-							&& idx)
+					if (ptMain->getStructName() == get<0>(structInfo) && ptElem->getStructName() == get<1>(structInfo) && op2Main->getValue().getZExtValue() == get<2>(structInfo) && op2Elem->getValue().getZExtValue() == get<3>(structInfo) && idxInst)
 						ret = true;
 					else
 						ret = false;
@@ -161,50 +185,66 @@ bool LocalVariables::processGepInstrNestedStruct(llvm::GetElementPtrInst *mainGE
 	return ret;
 }
 
-void LocalVariables::constantConversionStrctVars(Module &module, GetElementPtrInst* elemGEP, string funcName,
-		uint64_t value, raw_string_ostream &strLogger, int cntxtFlg){
+void LocalVariables::constantConversionStrctVars(Module &module,
+												 GetElementPtrInst *elemGEP, string funcName, uint64_t value,
+												 raw_string_ostream &strLogger, int cntxtFlg)
+{
 	int onlyReadGEP = 1;
-	if (cntxtFlg == 2)
-		strLogger << "\tinside constantConversionStrctVars\n";
-	for (auto usr : elemGEP->users()) {
-		if (auto si = dyn_cast<StoreInst>(usr)) {
-			if (returnIndex(instList, si) > neckIndex(module, instList, funcName)){
-				onlyReadGEP = 0;
-				strLogger << "onlyReadGEP = " << onlyReadGEP << "\n";
+	strLogger << "\tinside constantConversionStrctVars---cntxtFlg= " << cntxtFlg
+			  << "\n";
+
+	//check no writing after the neck if cntxtFlg = 1 or 2
+	if (cntxtFlg == 1 || cntxtFlg == 2)
+	{
+		for (auto usr : elemGEP->users())
+		{
+			if (auto si = dyn_cast<StoreInst>(usr))
+			{
+				if (returnIndex(instList, si) > neckIndex(module, instList, funcName))
+				{
+					onlyReadGEP = 0;
+					strLogger << "onlyReadGEP = " << onlyReadGEP << "\n";
+				}
 			}
 		}
 	}
 
-	for (auto usr : elemGEP->users()) {
-		if (auto si = dyn_cast<StoreInst>(usr)) {
-			bool idx = returnIndex(instList, si) < neckIndex(module, instList, funcName);
-			if (! cntxtFlg) idx = 1;
-			if (idx)
-				if (auto ci = dyn_cast<ConstantInt>(
-						si->getOperand(0))) {
+	for (auto usr : elemGEP->users())
+	{
+		if (auto si = dyn_cast<StoreInst>(usr))
+		{
+			bool idxInst = 1;
+			if (cntxtFlg == 1 || cntxtFlg == 2)
+				idxInst = returnIndex(instList, si) < neckIndex(module, instList, funcName);
+			//				we don't care about the idxInst in func before the neck
+
+			if (idxInst)
+				if (auto ci = dyn_cast<ConstantInt>(si->getOperand(0)))
+				{
 					strLogger << "ElemGEP: " << *elemGEP << "\n";
 					strLogger << "\tuser of GEP: " << *usr << "\n";
-					auto val =
-							ConstantInt::get(
-									si->getOperand(
-											0)->getType(),
-											value);
-					StoreInst *str = new StoreInst(
-							val, si->getOperand(1));
-					strLogger
-					<< "\tSI uses GEP replace \n\t\tFROM: " << *si << "\tTO: " << *str <<"\n";
+					auto val = ConstantInt::get(si->getOperand(0)->getType(),
+												value);
+					StoreInst *str = new StoreInst(val, si->getOperand(1));
+					strLogger << "\tSI uses GEP replace \n\t\tFROM: " << *si
+							  << "\tTO: " << *str << "\n";
 					ReplaceInstWithInst(si, str);
 				}
-		} else if (auto ld = dyn_cast<LoadInst>(usr)){
+		}
+		else if (auto ld = dyn_cast<LoadInst>(usr))
+		{
 			strLogger << "FOUND ld instr: " << *ld << "\n";
-			if (onlyReadGEP){
+			if (onlyReadGEP)
+			{
 				strLogger << "\nGEP: " << *elemGEP << "\n";
 				strLogger << "\tuser of GEP: " << *usr << "\n";
 				if (auto intType =
 						dyn_cast<IntegerType>(
-								ld->getPointerOperand()->getType()->getPointerElementType())) {
+							ld->getPointerOperand()->getType()->getPointerElementType()))
+				{
 					auto val = llvm::ConstantInt::get(intType, value);
-					strLogger << "\tReplace: " << *ld << "  with Val: " << value << "\n";
+					strLogger << "\tReplace: " << *ld << "  with Val: " << value
+							  << "\n";
 					ld->replaceAllUsesWith(val);
 					ld->eraseFromParent();
 				}
@@ -220,50 +260,99 @@ void LocalVariables::constantConversionStrctVars(Module &module, GetElementPtrIn
  * 3- If the user is GEP and matches the elemStrct
  * 4- then we can proceed with CC:
  * 4:1- find storeInst user of the GEP (elemStrct)
- * 4:2- perform CC based on the constant value similar to
+ * 4:2- perform CC based on the constant value
+ *
+ * The nested struct pattern (nested struct nested elem) handled here: GEP main -> GEP elem -> store/load instr
  */
-void LocalVariables::handleNestedStrct(Module &module, map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t>&vars, string funcName){
+void LocalVariables::handleNestedStrct(Module &module,
+									   map<tuple<string, string, uint64_t, uint64_t, int>, uint64_t> &vars,
+									   string funcName)
+{
 	string str;
 	raw_string_ostream strLogger(str);
-	set<Instruction*> strctAlloc;
+	set<Instruction *> strctAlloc;
 
-	strLogger << "*****\nStart Converting nested struct (no PTR) locals to constant\n";
-	for (auto elem : vars) {
-		strLogger << "ELEM:: " << get<0>(elem.first) << " " << get<1>(elem.first) << " " << get<2>(elem.first)
-																												<< " " << get<3>(elem.first) << " " << *instList[get<4>(elem.first)] <<"\n";
-
+	strLogger << "*****\nStart CC nested struct (no PTR) locals\n";
+	for (auto elem : vars)
+	{
+		strLogger << "ELEM:: " << get<0>(elem.first) << " "
+				  << get<1>(elem.first) << " " << get<2>(elem.first) << " "
+				  << get<3>(elem.first) << " " << *instList[get<4>(elem.first)]
+				  << "\n";
 		for (auto curF = module.getFunctionList().begin();
-				curF != module.getFunctionList().end(); curF++) {
+			 curF != module.getFunctionList().end(); curF++)
+		{
 			string fn = curF->getName();
-			if (fn == funcName){
-				for (auto curI = inst_begin(*curF); curI != inst_end(*curF); curI++){
-					if (auto* mainGEP = dyn_cast<GetElementPtrInst>(&*curI)){
-						for (auto usr : mainGEP->users()){
+			if (fn == funcName)
+			{
+				for (auto curI = inst_begin(*curF); curI != inst_end(*curF);
+					 curI++)
+				{
+					if (auto *mainGEP = dyn_cast<GetElementPtrInst>(&*curI))
+					{
+						for (auto usr : mainGEP->users())
+						{
 							if (auto elemGEP = dyn_cast<GetElementPtrInst>(usr))
-								if (processGepInstrNestedStruct(mainGEP, elemGEP, elem.first,1))
-									constantConversionStrctVars(module, elemGEP, funcName, elem.second, strLogger, 1);
+								if (processGepInstrNestedStruct(mainGEP,
+																elemGEP, elem.first, 1))
+									constantConversionStrctVars(module, elemGEP,
+																funcName, elem.second, strLogger,
+																1);
 						}
 					}
 				}
 
-				//handling nested structs passed by address
+				//handling nested structs passed by address before the neck
 				//it finds function calls wherein struct variables are passed by address
 				for (auto usr : instList[get<4>(elem.first)]->users())
-					if (auto callInst = dyn_cast<CallInst>(usr)){
-						strLogger << "Found user: " << *callInst << "\n";
-						if (returnIndex(instList, callInst) < neckIndex(module, instList, funcName)){
+					if (auto callInst = dyn_cast<CallInst>(usr))
+					{
+						strLogger << "\tFound user: " << *callInst << "\n";
+						if (returnIndex(instList, callInst) < neckIndex(module, instList, funcName))
+						{
 							int c = 0;
-							for (auto arg = callInst->arg_begin(); arg != callInst->arg_end(); arg++, c++){
-								if (instList[get<4>(elem.first)] == *arg){
-									strLogger << "\tattr: " << callInst->paramHasAttr(c, Attribute::ByVal) << "\n";
-									if (!callInst->paramHasAttr(c, Attribute::ByVal)){
-										strLogger << "found call by address\n";
-										for (auto curI = inst_begin(*callInst->getCalledFunction()); curI != inst_end(*callInst->getCalledFunction()); curI++){
-											if (auto* mainGEP = dyn_cast<GetElementPtrInst>(&*curI)){
-												for (auto usr : mainGEP->users()){
-													if (auto elemGEP = dyn_cast<GetElementPtrInst>(usr)){
-														if (processGepInstrNestedStruct(mainGEP, elemGEP, elem.first, 0))
-															constantConversionStrctVars(module, elemGEP, funcName, elem.second, strLogger, 0);
+							for (auto arg = callInst->arg_begin();
+								 arg != callInst->arg_end(); arg++, c++)
+							{
+								if (instList[get<4>(elem.first)] == *arg)
+								{
+									strLogger << "\t\ttr: "
+											  << callInst->paramHasAttr(c,
+																		Attribute::ByVal)
+											  << "\n";
+									if (!callInst->paramHasAttr(c,
+																Attribute::ByVal))
+									{
+										strLogger
+											<< "\t\t\tfound call by address to: "
+											<< *arg->get() << "\n";
+										for (auto curI = inst_begin(
+												 *callInst->getCalledFunction());
+											 curI != inst_end(
+														 *callInst->getCalledFunction());
+											 curI++)
+										{
+											if (auto *mainGEP = dyn_cast<
+													GetElementPtrInst>(
+													&*curI))
+											{
+												for (auto usr : mainGEP->users())
+												{
+													if (auto elemGEP = dyn_cast<
+															GetElementPtrInst>(
+															usr))
+													{
+														if (processGepInstrNestedStruct(
+																mainGEP,
+																elemGEP,
+																elem.first, 0))
+															constantConversionStrctVars(
+																module,
+																elemGEP,
+																funcName,
+																elem.second,
+																strLogger,
+																0);
 													}
 												}
 											}
@@ -280,7 +369,6 @@ void LocalVariables::handleNestedStrct(Module &module, map <tuple<string, string
 	logger << strLogger.str();
 }
 
-
 /*
  * The main logic to convert ptr to strct in a nestedstruct variables to constant:
  * 1- Search for GEP that matches the mainStrct, its index, and the index of corresponding AllocInstr
@@ -290,32 +378,54 @@ void LocalVariables::handleNestedStrct(Module &module, map <tuple<string, string
  * 5- If the user is GEP and matches the elemStrct
  * 6- then we can proceed with CC:
  * 6:1- find storeInst user of the GEP (elemStrct)
- * 6:2- perform CC based on the constant value similar to
+ * 6:2- perform CC based on the constant value
  */
-void LocalVariables::handlePtrToNestedStrct(Module &module, map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t> &vars, string funcName){
+void LocalVariables::handlePtrToNestedStrct(Module &module,
+											map<tuple<string, string, uint64_t, uint64_t, int>, uint64_t> &vars,
+											string funcName)
+{
 	string str;
 	raw_string_ostream strLogger(str);
-	strLogger << "*****\nStart Converting nested struct PTR locals to constant\n";
+	strLogger
+		<< "*****\nStart CC nested struct PTR locals\n\n";
 
 	//this logic for constant conversion for a struct variable that contains a pointer to struct element
-	//because the pattern here is: GEP main strct > load instr > GEP elem strct > load instr (after neck) or store inst (before neck)
-	for (auto elem : vars) {
+	//because the pattern here is: GEP  main strct > load instr > GEP elem strct > load instr (after neck) or store inst (before neck)
+	for (auto elem : vars)
+	{
+		strLogger << "ELEM:: " << get<0>(elem.first) << " "
+				  << get<1>(elem.first) << " " << get<2>(elem.first) << " "
+				  << get<3>(elem.first) << " " << *instList[get<4>(elem.first)]
+				  << "\n";
 		for (auto curF = module.getFunctionList().begin();
-				curF != module.getFunctionList().end(); curF++) {
+			 curF != module.getFunctionList().end(); curF++)
+		{
 			string fn = curF->getName();
-			if (fn == funcName){
-				for (auto curI = inst_begin(*curF); curI != inst_end(*curF); curI++){
-					if (auto* mainGEP = dyn_cast<GetElementPtrInst>(&*curI)){
-						for (auto usr : mainGEP->users()){
-							if (auto ld = dyn_cast<LoadInst>(usr)){
-								strLogger << "fn: " << fn << "\n";
+			if (fn == funcName)
+			{
+				for (auto curI = inst_begin(*curF); curI != inst_end(*curF);
+					 curI++)
+				{
+					if (auto *mainGEP = dyn_cast<GetElementPtrInst>(&*curI))
+					{
+						for (auto usr : mainGEP->users())
+						{
+							if (auto ld = dyn_cast<LoadInst>(usr))
+							{
 								strLogger << "\tmainGEP: " << *mainGEP << "\n";
-								strLogger << "\t\tmainGEP user: " << *usr << "\n";
-								for (auto ldUser : ld->users()){
-									strLogger << "\t\t\tld user: " << *ldUser << "\n";
-									if (auto* elemGEP = dyn_cast<GetElementPtrInst>(ldUser))
-										if (processGepInstrNestedStruct(mainGEP, elemGEP, elem.first, 2))
-											constantConversionStrctVars(module, elemGEP, funcName, elem.second, strLogger, 2);
+								strLogger << "\t\tmainGEP user: " << *usr
+										  << "\n";
+								for (auto ldUser : ld->users())
+								{
+									strLogger << "\t\t\tld user: " << *ldUser
+											  << "\n";
+									if (auto *elemGEP = dyn_cast<
+											GetElementPtrInst>(ldUser))
+										if (processGepInstrNestedStruct(mainGEP,
+																		elemGEP, elem.first, 2))
+											constantConversionStrctVars(module,
+																		elemGEP, funcName,
+																		elem.second, strLogger, 2);
 								}
 							}
 						}
@@ -337,77 +447,96 @@ void LocalVariables::handlePtrToNestedStrct(Module &module, map <tuple<string, s
  * 3- find GEP2 that: uses GEP1, its operand is the name of the element strct and the element index
  * 4- check the users of GEP2 is load instr and no store instr is a user of GEP2
  */
-void LocalVariables::handlePtrToNestedStructAfterNeck(map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t> &vars, raw_string_ostream &strLogger){
-//	for (){
-//
-//	}
+void LocalVariables::handlePtrToNestedStructAfterNeck(
+	map<tuple<string, string, uint64_t, uint64_t, int>, uint64_t> &vars,
+	raw_string_ostream &strLogger)
+{
+
 }
 
 /*
  * this function replaces pointer to strct but after the neck iff the struct hasnt been modified
  */
 void LocalVariables::replacePtrToStructPostNeck(
-		vector<pair<GetElementPtrInst*, postNeckGepInfo>> gepInfo, raw_string_ostream& strLogger) {
-	strLogger << "\n*****\nReplacing Load Intructions After neck (ptr to struct)...\n";
-	for (auto elem : gepInfo) {
+	vector<pair<GetElementPtrInst *, postNeckGepInfo>> gepInfo,
+	raw_string_ostream &strLogger)
+{
+	strLogger
+		<< "\n*****\nReplacing Load Intructions After neck (ptr to struct)...\n";
+	for (auto elem : gepInfo)
+	{
 		//make sure !isThereStoreInst
-		if (!get<0>(elem.second)) {
-			for (auto ld : get<1>(elem.second)) {
+		if (!get<0>(elem.second))
+		{
+			for (auto ld : get<1>(elem.second))
+			{
 				strLogger << "\nGEP: " << *elem.first << "\n";
 				if (auto intType =
 						dyn_cast<IntegerType>(
-								ld->getPointerOperand()->getType()->getPointerElementType())) {
+							ld->getPointerOperand()->getType()->getPointerElementType()))
+				{
 					auto val = llvm::ConstantInt::get(intType,
-							get<2>(elem.second));
-					strLogger << "\tReplace: " << *ld << "  with Val: " << get<2>(elem.second) << "\n";
+													  get<2>(elem.second));
+					strLogger << "\tReplace: " << *ld << "  with Val: "
+							  << get<2>(elem.second) << "\n";
 					ld->replaceAllUsesWith(val);
+					strLogger << "\t\tRemoving converted Load instr: " << *ld
+							  << "\n";
 					ld->eraseFromParent();
 				}
 			}
 		}
 	}
-	//	logger << strLogger.str();
 }
 
 /*1- Check getelementptr instructions after the neck
  *2- check if the same struct name and same element index
  *3- If all are matching, then check all uses of the getelementptr and store them in a vector.
  *4- if all use instructions are load, then we can convert them into constants
- *clocals: KEY: (0- structName 1- element index 2- allocIdx) --> VALUE: (constant value)
+ *clocals: KEY: (0- structName 1- element index 2- allocIdxInst) --> VALUE: (constant value)
  */
 void LocalVariables::handlePtrToStructAfterNeck(Module &module,
-		map<tuple<string, uint64_t, int>, uint64_t> &clocals,
-		int &modifiedInst, string funcName) {
+												map<tuple<string, uint64_t, int>, uint64_t> &clocals, string funcName)
+{
 	string str;
 	raw_string_ostream strLogger(str);
 	strLogger << "\n*****\nRunning handlePtrLocalStructUsesAfterNeck...\n";
-	vector<pair<GetElementPtrInst*, postNeckGepInfo>> gepInfo;
+	vector<pair<GetElementPtrInst *, postNeckGepInfo>> gepInfo;
 
-	for (auto srctGep : clocals) {
-		vector<LoadInst*> loadInstUseGep;
+	for (auto srctGep : clocals)
+	{
+		vector<LoadInst *> loadInstUseGep;
 		GetElementPtrInst *inst;
 		bool isThereStoreInst = 0;
 
 		for (auto curF = module.getFunctionList().begin();
-				curF != module.getFunctionList().end(); curF++) {
+			 curF != module.getFunctionList().end(); curF++)
+		{
 			string fn = curF->getName();
 			if (fn == funcName)
-				for (auto curB = curF->begin(); curB != curF->end(); curB++) {
+				for (auto curB = curF->begin(); curB != curF->end(); curB++)
+				{
 					for (auto curI = curB->begin(); curI != curB->end();
-							curI++) {
+						 curI++)
+					{
 						if (auto gep = dyn_cast<llvm::GetElementPtrInst>(
-								curI)) {
-							if (returnIndex(instList, gep)
-									> neckIndex(module, instList, funcName)
-									&& processGepInstrPtrStruct(gep, srctGep.first)) {
+								curI))
+						{
+							if (returnIndex(instList, gep) > neckIndex(module, instList, funcName) && processGepInstrPtrStruct(gep,
+																															   srctGep.first))
+							{
 								inst = gep;
-								modifiedInst++;
-								for (auto i : gep->users()) {
-									if (isa<StoreInst>(i)) {
+								for (auto i : gep->users())
+								{
+									if (isa<StoreInst>(i))
+									{
+										//this means the value is changed after the neck
 										isThereStoreInst = 1;
 										break;
-									} else if (auto ld = dyn_cast<LoadInst>(
-											i)) {
+									}
+									else if (auto ld = dyn_cast<LoadInst>(
+												 i))
+									{
 										loadInstUseGep.push_back(ld);
 									}
 								}
@@ -417,66 +546,65 @@ void LocalVariables::handlePtrToStructAfterNeck(Module &module,
 				}
 		}
 		gepInfo.push_back(
-				make_pair(inst,
-						make_tuple(isThereStoreInst, loadInstUseGep,
-								srctGep.second)));
+			make_pair(inst,
+					  make_tuple(isThereStoreInst, loadInstUseGep,
+								 srctGep.second)));
 	}
 	replacePtrToStructPostNeck(gepInfo, strLogger);
 	logger << strLogger.str();
 }
 
 /*
-void LocalVariables::handleLocalStructUsesAfterNeck(Module &module,
-		map <pair<std::string, uint64_t>, uint64_t> &clocals,
-		int &modifiedInst, string funcName) {
-	string str;
-	raw_string_ostream strLogger(str);
-	strLogger << "\n*****\nRunning handleLocalStructUsesAfterNeck...\n";
-	vector<pair<GetElementPtrInst*, postNeckGepInfo>> gepInfo;
+ void LocalVariables::handleLocalStructUsesAfterNeck(Module &module,
+ map <pair<std::string, uint64_t>, uint64_t> &clocals,
+ int &modifiedInst, string funcName) {
+ string str;
+ raw_string_ostream strLogger(str);
+ strLogger << "\n*****\nRunning handleLocalStructUsesAfterNeck...\n";
+ vector<pair<GetElementPtrInst*, postNeckGepInfo>> gepInfo;
 
-	for (auto srctGep : clocals) {
-		vector<LoadInst*> loadInstUseGep;
-		GetElementPtrInst *inst;
-		bool isThereStoreInst = 0;
+ for (auto srctGep : clocals) {
+ vector<LoadInst*> loadInstUseGep;
+ GetElementPtrInst *inst;
+ bool isThereStoreInst = 0;
 
-		for (auto curF = module.getFunctionList().begin();
-				curF != module.getFunctionList().end(); curF++) {
-			string fn = curF->getName();
-			if (fn == funcName)
-				for (auto curB = curF->begin(); curB != curF->end(); curB++) {
-					for (auto curI = curB->begin(); curI != curB->end();
-							curI++) {
-						if (auto gep = dyn_cast<llvm::GetElementPtrInst>(
-								curI)) {
-							if (returnIndex(instList, gep)
-									> neckIndex(module, instList, funcName)
-									&& processGepInstrStruct(gep, srctGep.first)) {
-								inst = gep;
-								modifiedInst++;
-								for (auto i : gep->users()) {
-									if (isa<StoreInst>(i)) {
-										isThereStoreInst = 1;
-										break;
-									} else if (auto ld = dyn_cast<LoadInst>(
-											i)) {
-										loadInstUseGep.push_back(ld);
-									}
-								}
-							}
-						}
-					}
-				}
-		}
-		gepInfo.push_back(
-				make_pair(inst,
-						make_tuple(isThereStoreInst, loadInstUseGep,
-								srctGep.second)));
-	}
-	replaceStructPostNeck(gepInfo);
-	logger << strLogger.str();
-}
+ for (auto curF = module.getFunctionList().begin();
+ curF != module.getFunctionList().end(); curF++) {
+ string fn = curF->getName();
+ if (fn == funcName)
+ for (auto curB = curF->begin(); curB != curF->end(); curB++) {
+ for (auto curI = curB->begin(); curI != curB->end();
+ curI++) {
+ if (auto gep = dyn_cast<llvm::GetElementPtrInst>(
+ curI)) {
+ if (returnIndex(instList, gep)
+ > neckIndex(module, instList, funcName)
+ && processGepInstrStruct(gep, srctGep.first)) {
+ inst = gep;
+ modifiedInst++;
+ for (auto i : gep->users()) {
+ if (isa<StoreInst>(i)) {
+ isThereStoreInst = 1;
+ break;
+ } else if (auto ld = dyn_cast<LoadInst>(
+ i)) {
+ loadInstUseGep.push_back(ld);
+ }
+ }
+ }
+ }
+ }
+ }
+ }
+ gepInfo.push_back(
+ make_pair(inst,
+ make_tuple(isThereStoreInst, loadInstUseGep,
+ srctGep.second)));
+ }
+ replaceStructPostNeck(gepInfo);
+ logger << strLogger.str();
+ }
  */
-
 
 /*
  * This method does constant conversion for strcut
@@ -486,52 +614,68 @@ void LocalVariables::handleLocalStructUsesAfterNeck(Module &module,
  * 3- verify if this struct has corresponding const value in the list structLocals
  * 4- find if the user is store instr
  */
-void LocalVariables::handleStructLocalVars(Module &module, map <tuple<string, uint64_t, int>, uint64_t> &structLocals,
-		string funcName){
-	int modifiedInst = 0;
+void LocalVariables::handleStructLocalVars(Module &module,
+										   map<tuple<string, uint64_t, int>, uint64_t> &structLocals,
+										   string funcName)
+{
 	string str;
 	raw_string_ostream strLogger(str);
-	GetElementPtrInst* singleGEP;
-	strLogger << "*****\nStart Converting struct locals to constant\n";
+	strLogger << "*****\nStart CC struct locals\n";
 
-	for (auto elem : structLocals) {
+	for (auto elem : structLocals)
+	{
 		for (auto curF = module.getFunctionList().begin();
-				curF != module.getFunctionList().end(); curF++) {
+			 curF != module.getFunctionList().end(); curF++)
+		{
 			string fn = curF->getName();
-			if (fn == funcName){
-				strLogger << "FUNC Name: "<< fn << "\n";
-				for (auto curB = curF->begin(); curB != curF->end(); curB++) {
+			if (fn == funcName)
+			{
+				strLogger << "FUNC Name: " << fn << "\n";
+				for (auto curB = curF->begin(); curB != curF->end(); curB++)
+				{
 					for (auto curI = curB->begin(); curI != curB->end();
-							curI++) {
+						 curI++)
+					{
 						if (auto gep = dyn_cast<GetElementPtrInst>(curI))
-							if (returnIndex(instList, gep)
-									< neckIndex(module, instList, funcName)){
+						{
+							if (returnIndex(instList, gep) < neckIndex(module, instList, funcName))
+							{
 								//check if the gep is matching one of the elements in structLocals
-								if (processGepInstrStruct(gep, elem.first)) {
-									strLogger << "FOUND GEP with 3 args" << "\n";
-									for (auto usr : gep->users()) {
+								if (processGepInstrStruct(gep, elem.first))
+								{
+									strLogger << "FOUND GEP with 3 args"
+											  << "\n";
+									for (auto usr : gep->users())
+									{
 										strLogger << "GEP: " << *gep << "\n";
 										strLogger << "\tuser of GEP: " << *usr
-												<< "\n";
+												  << "\n";
 
-										if (auto si = dyn_cast<StoreInst>(usr)) {
+										if (auto si = dyn_cast<StoreInst>(
+												usr))
+										{
 											if (auto ci = dyn_cast<ConstantInt>(
-													si->getOperand(0))) {
+													si->getOperand(0)))
+											{
 												auto val =
-														ConstantInt::get(
-																si->getOperand(
-																		0)->getType(),
-																		elem.second);
+													ConstantInt::get(
+														si->getOperand(
+															  0)
+															->getType(),
+														elem.second);
 												StoreInst *str = new StoreInst(
-														val, si->getOperand(1));
+													val, si->getOperand(1));
 												strLogger
-												<< "\tSI uses GEP replace \n\t\tFROM: " << *si << "\tTO: " << *str <<"\n";
+													<< "\tSI uses GEP replace \n\t\tFROM: "
+													<< *si << "\tTO: "
+													<< *str << "\n";
 												ReplaceInstWithInst(si, str);
 											}
 										}
 									}
 								}
 							}
+						}
 					}
 				}
 			}
@@ -539,65 +683,71 @@ void LocalVariables::handleStructLocalVars(Module &module, map <tuple<string, ui
 	}
 	logger << strLogger.str();
 	//	handleLocalStructUsesAfterNeck(module, structLocals, modifiedInst, funcName);
-	//inspectInitalizationPreNeck(module, instList, ptrStructLocals, modifiedInst, funcName);
+	inspectInitalizationPreNeck(module, structLocals, funcName);
 }
-
-
 
 /*
  * I need to decide which GEP operand that will be the allocate instr (I noticed I need to check only operand 0)
  * I need to do it now to handle only structs, when GetElementPtrInst is used to compute the address of struct
- * the number of operands is 3. getelementptr t* %val, t1 idx1, t2 idx2
+ * the number of operands is 3. getelementptr t* %val, t1 idxInst1, t2 idxInst2
  * TODO this function logic looks similar to the function handleStructLocalVars, except very minor differences
+ * processGepInstrPtrStruct is used here while handleStructLocalVars uses processGepInstrStruct
  * I might need to merge the two functions together
  */
 void LocalVariables::handlePtrToStrctLocalVars(Module &module,
-		map<tuple<string, uint64_t, int>, uint64_t> &ptrStructLocals, string funcName) {
-	int modifiedInst = 0;
+											   map<tuple<string, uint64_t, int>, uint64_t> &ptrStructLocals,
+											   string funcName)
+{
 	string str;
 	raw_string_ostream strLogger(str);
-	GetElementPtrInst* singleGEP;
-	strLogger << "*****\nStart Converting pointer struct locals to constant\n";
-	for (auto elem : ptrStructLocals) {
+	strLogger << "*****\nStart CC pointer struct locals\n";
+	for (auto elem : ptrStructLocals)
+	{
 		for (auto curF = module.getFunctionList().begin();
-				curF != module.getFunctionList().end(); curF++) {
+			 curF != module.getFunctionList().end(); curF++)
+		{
 			string fn = curF->getName();
-			if (fn == funcName){
-				strLogger << "FUNC Name: "<< fn << "\n";
-				for (auto curB = curF->begin(); curB != curF->end(); curB++) {
+			if (fn == funcName)
+			{
+				strLogger << "FUNC Name: " << fn << "\n";
+				for (auto curB = curF->begin(); curB != curF->end(); curB++)
+				{
 					for (auto curI = curB->begin(); curI != curB->end();
-							curI++) {
+						 curI++)
+					{
 						if (auto gep = dyn_cast<GetElementPtrInst>(curI))
-							if (returnIndex(instList, gep)
-									< neckIndex(module, instList, funcName))
+							if (returnIndex(instList, gep) < neckIndex(module, instList, funcName))
 								//check if the gep is matching one of the elements in clocals
-								if (processGepInstrPtrStruct(gep, elem.first)) {
-									strLogger << "FOUND GEP with 3 args" << "\n";
+								if (processGepInstrPtrStruct(gep, elem.first))
+								{
+									strLogger << "FOUND GEP with 3 args"
+											  << "\n";
 									//this var counts the number of gep that have been converted to constant
-									modifiedInst++;
 									//perform the constant conversion
-									singleGEP = gep;
-									for (auto i : gep->users()) {
+									for (auto i : gep->users())
+									{
 										strLogger << "GEP: " << *gep << "\n";
 										strLogger << "\tuser of GEP: " << *i
-												<< "\n";
-										if (auto si = dyn_cast<StoreInst>(i)) {
+												  << "\n";
+										if (auto si = dyn_cast<StoreInst>(i))
+										{
 											if (auto ci = dyn_cast<ConstantInt>(
-													si->getOperand(0))) {
+													si->getOperand(0)))
+											{
 												auto val =
-														ConstantInt::get(
-																si->getOperand(
-																		0)->getType(),
-																		elem.second);
+													ConstantInt::get(
+														si->getOperand(
+															  0)
+															->getType(),
+														elem.second);
 												StoreInst *str = new StoreInst(
-														val, si->getOperand(1));
+													val, si->getOperand(1));
 												strLogger
-												<< "\tSI uses GEP (PTR strct) replace \n\t\tFROM: " << *si << "\tTO: " << *str <<"\n";
+													<< "\tSI uses GEP (PTR strct) replace \n\t\tFROM: "
+													<< *si << "\tTO: "
+													<< *str << "\n";
 												ReplaceInstWithInst(si, str);
 											}
-										} else if (auto ld = dyn_cast<LoadInst>(
-												i)) {
-
 										}
 									}
 								}
@@ -607,78 +757,30 @@ void LocalVariables::handlePtrToStrctLocalVars(Module &module,
 		}
 	}
 	logger << strLogger.str();
-	handlePtrToStructAfterNeck(module, ptrStructLocals, modifiedInst, funcName);
-	inspectInitalizationPreNeck(module, instList, ptrStructLocals, modifiedInst, funcName);
-
-	//if there is only one modification, this mean high probably in the deadcode.
-	//so I need to define this variable after the method call for klee_dump
-	/*if (modifiedInst == 1){
-		outs() << "I need to find define After klee_dump" <<"\n";
-		IRBuilder<> builder(module.getContext());
-		//1- create load
-		//2- create gep
-		//3- load
-		int c = 0;
-		bool deadGEP = false;
-		BasicBlock* bb = singleGEP->getParent();
-		for (auto i = bb->getInstList().begin(); i != bb->getInstList().end();
-				i++, c++){
-			outs() << *i << "\n";
-			if (c == bb->getInstList().size() -1 && isa<BranchInst>(i)){
-//				outs() << *i << "\n";
-				deadGEP = true;
-				i->removeFromParent();
-				outs() << "Revome the last inst\n";
-				break;
-			}
-		}
-		//insert after klee_dump
-		for (auto curF = module.getFunctionList().begin();
-				curF != module.getFunctionList().end(); curF++) {
-			string fn = curF->getName();
-			if (fn == "main")
-				for (auto curB = curF->begin(); curB != curF->end(); curB++)
-					for (auto curI = curB->begin(); curI != curB->end();
-							curI++) {
-						Instruction *inst = &*curI;
-						if (auto cs = dyn_cast<CallInst>(curI))
-							if (cs->getCalledFunction()->getName()
-									== "klee_dump_memory" && deadGEP) {
-								outs() << "FOUND KLEE_DUMP\n";
-//								auto term = cs->getParent()->getTerminator();
-								outs() << "BEFORE moving BB\n";
-								//								term->insertAfter(cast<Instruction>(lastInst));
-								Instruction* curInst = inst;
-								int c = 0;
-								for (auto i = bb->getInstList().begin(); i != bb->getInstList().end(); i++, c++){
-//									outs() << "\tBEF: " << *curInst <<"\n";
-									i->moveAfter(curInst+c);
-//									curInst = curInst->getNextNode();
-//									outs() << "\tAFT: " << *curInst <<"\n";
-								}
-								//								bb->moveAfter(inst->getParent());
-								outs() << "AFTER moving BB\n";
-								return;
-							}
-					}
-		}
-	}*/
+	handlePtrToStructAfterNeck(module, ptrStructLocals, funcName);
+	inspectInitalizationPreNeck(module, ptrStructLocals, funcName);
 }
 
 /*
  * This function does similar task to the list instList
  * TODO check if there is any duplication
  */
-map<uint64_t, Instruction*> getAllInstr(Module &module) {
-	map<uint64_t, Instruction*> insts;
+map<uint64_t, Instruction *> getAllInstr(Module &module)
+{
+	map<uint64_t, Instruction *> insts;
 	for (auto curF = module.getFunctionList().begin(), endF =
-			module.getFunctionList().end(); curF != endF; ++curF) {
+														   module.getFunctionList().end();
+		 curF != endF; ++curF)
+	{
 		string fn = curF->getName();
-		if (fn == "main") {
+		if (fn == "main")
+		{
 			uint64_t i = 0;
-			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
+			for (auto curB = curF->begin(); curB != curF->end(); curB++)
+			{
 				for (auto curI = curB->begin(); curI != curB->end();
-						curI++, i++) {
+					 curI++, i++)
+				{
 					Instruction *inst = &*curI;
 					insts.emplace(i, inst);
 				}
@@ -687,51 +789,54 @@ map<uint64_t, Instruction*> getAllInstr(Module &module) {
 	}
 	return insts;
 }
-//I noticed operand(0) isn't AllocaInst as in the main method.
-//Not quite sure if this is the case with all methods
+
 void LocalVariables::handleStructInOtherMethods(Function *fn,
-		map<tuple<string, uint64_t, int>, uint64_t> &clocals, int &modifiedInst, raw_string_ostream& strLogger) {
-	strLogger << "\n*****\nHandle structs in Other methods before the neck... Func: " << fn->getName() <<"\n";
-	for (auto curI = inst_begin(fn); curI != inst_end(fn); curI++) {
-		if (auto gep = dyn_cast<GetElementPtrInst>(&*curI)) {
+												  map<tuple<string, uint64_t, int>, uint64_t> &clocals,
+												  raw_string_ostream &strLogger, int idxInst)
+{
+	strLogger
+		<< "\n*****\nHandle structs in Other methods before the neck... Func: "
+		<< fn->getName() << "\n";
+
+	for (auto curI = inst_begin(fn); curI != inst_end(fn); curI++)
+	{
+		if (auto gep = dyn_cast<GetElementPtrInst>(&*curI))
+		{
 			if (auto opr0Type = dyn_cast<PointerType>(
 					gep->getOperand(0)->getType()))
 				if (auto pt = dyn_cast<StructType>(opr0Type->getElementType()))
-					if (auto op2 = dyn_cast<ConstantInt>(gep->getOperand(2))) {
-						strLogger << "\t op2: " << *op2 << "\n";
-						//change to make_tuple, and chk dump impelemnt to get the 3rd element (int)
-						if (auto ld = dyn_cast<llvm::LoadInst>(gep->getOperand(0))){
-							strLogger << "\t ld: " << *ld << "\n";
-							int idx = 0;
-							auto ldOp = find (instList.begin(), instList.end(), cast<llvm::Instruction>(ld->getPointerOperand()));
-							strLogger << "\t Trying to find: " << *ld->getPointerOperand() << "\n";
-							if (ldOp != instList.end()){
-								idx = std::distance(instList.begin(), ldOp);
-								strLogger << "\t\tFound ld@idx: " << idx << "\n";
-								auto it = clocals.find(
-										make_tuple(pt->getStructName(), op2->getValue().getZExtValue(), idx));
-								if (it != clocals.end()) {
-									for (auto i : gep->users()) {
-										modifiedInst++;
-										strLogger << "GEP: " << *gep << "\n";
-										strLogger << "\tuser of GEP: " << *i << "\n";
-										if (auto si = dyn_cast<StoreInst>(i)) {
-											if (auto ci = dyn_cast<ConstantInt>(
-													si->getOperand(0))) {
-												auto val = ConstantInt::get(
-														si->getOperand(0)->getType(),
-														it->second);
-												strLogger
-												<< "\tSI uses GEP replace.. \n\n";
-												StoreInst *str = new StoreInst(val,
-														si->getOperand(1));
-												ReplaceInstWithInst(si, str);
-											}
-										}
+					if (auto op2 = dyn_cast<ConstantInt>(gep->getOperand(2)))
+					{
+						auto it = clocals.find(
+							make_tuple(pt->getStructName(),
+									   op2->getValue().getZExtValue(),
+									   idxInst));
+						if (it != clocals.end())
+						{
+							for (auto i : gep->users())
+							{
+								strLogger << "GEP: " << *gep << "\n";
+								strLogger << "\tuser of GEP: " << *i
+										  << "\n";
+								if (auto si = dyn_cast<StoreInst>(i))
+								{
+									if (auto ci = dyn_cast<ConstantInt>(
+											si->getOperand(0)))
+									{
+										auto val =
+											ConstantInt::get(
+												si->getOperand(
+													  0)
+													->getType(),
+												it->second);
+										strLogger
+											<< "\tSI uses GEP replace.. \n\n";
+										StoreInst *str = new StoreInst(
+											val, si->getOperand(1));
+										ReplaceInstWithInst(si, str);
 									}
 								}
 							}
-							//										llvm::outs() << "ld opr:: " << *ld->getPointerOperand() <<"\n";
 						}
 					}
 		}
@@ -740,54 +845,52 @@ void LocalVariables::handleStructInOtherMethods(Function *fn,
 
 /*
  * sometimes the struct variable is initalized in a different method than the main method
- * like the `rm`
+ * like the struct x in the main in `rm`: rm_option_init (&x)
  * I need to inspect these methods by checking:
  * 1- all method calls before the main method
  * 2- check the arguments of each method if it contains the struct variable,initalized
+ * TODO this situation can happen with other variables
  */
 void LocalVariables::inspectInitalizationPreNeck(Module &module,
-		vector<Instruction*> instList,
-		map<tuple<string, uint64_t, int>, uint64_t> &clocals, int &modifiedInst, string funcName) {
+												   map<tuple<string, uint64_t, int>, uint64_t> &clocals, string funcName)
+{
 	string str;
 	raw_string_ostream strLogger(str);
 	set<string> structTypes;
-	strLogger << "\n*****\nRunning inspectInitalizationPreNeck...\n";
-	for (auto f : clocals) {
-		structTypes.insert(get<0>(f.first));
-	}
-	for (auto curF = module.getFunctionList().begin();
-			curF != module.getFunctionList().end(); curF++) {
-		if (curF->getName() == funcName)
-			for (auto curB = curF->begin(); curB != curF->end(); curB++)
-				for (auto curI = curB->begin(); curI != curB->end(); curI++)
-					if (auto ci = dyn_cast<CallInst>(curI))
-						if (returnIndex(instList, cast<Instruction>(ci))
-								< neckIndex(module, instList, funcName)) {
-							Function *fn = ci->getCalledFunction();
-							if (fn->getName() == "llvm.dbg.declare")
-								continue;
-							//							outs() << "Call: " << fn->getName() << "\n";
-							//check if arguments of the function call site contain a struct
-							for (auto arg = fn->arg_begin();
-									arg != fn->arg_end(); ++arg)
-								if (arg->getType()->isPointerTy())
-									if (auto st =
-											dyn_cast<StructType>(
-													arg->getType()->getPointerElementType()))
-										if (structTypes.find(
-												st->getStructName())
-												!= structTypes.end()) {
-											handleStructInOtherMethods(fn,
-													clocals, modifiedInst, strLogger);
-										}
-
-						}
+	strLogger << "\n*****\nRunning inspectInitalizationPreNec...\n";
+	int idxInst = 0;
+	for (auto inst : instList)
+	{
+		if (auto *ai = dyn_cast<AllocaInst>(inst))
+		{
+			if (ai->getType()->isPointerTy())
+			{
+				if (auto *st = dyn_cast<StructType>(ai->getType()->getPointerElementType()))
+				{
+					strLogger << "****st: " << *st << "---idxInst= " << idxInst << "\n";
+					for (auto usr : ai->users())
+					{
+						//TODO I may need to check the args of ci to avoid pass by address 
+						if (auto *ci = dyn_cast<CallInst>(usr))
+							if (returnIndex(instList, cast<Instruction>(ci)) < neckIndex(module, instList, funcName))
+							{
+								Function *fn = ci->getCalledFunction();
+								if (fn->getName() == "llvm.dbg.declare")
+									continue;
+								handleStructInOtherMethods(fn, clocals, strLogger, idxInst);
+							}
+					}
+				}
+			}
+		}
+		idxInst++;
 	}
 	logger << strLogger.str();
 }
 
-string getVarName(map<AllocaInst*, std::string> &instrToVarName,
-		AllocaInst *ld) {
+string getVarName(map<AllocaInst *, std::string> &instrToVarName,
+				  AllocaInst *ld)
+{
 	string name = "";
 	auto varName = instrToVarName.find(ld);
 	if (varName != instrToVarName.end())
@@ -802,136 +905,179 @@ string getVarName(map<AllocaInst*, std::string> &instrToVarName,
  * then we can convert to constant
  */
 void LocalVariables::handleLocalPrimitiveUsesAfterNeck(Module &module,
-		map<string, uint64_t> &plocals, map<AllocaInst*, uint64_t> instrToIdx,
-		vector<Instruction*> instList,
-		map<AllocaInst*, string> instrToVarName, string funcName) {
+													   map<string, uint64_t> &plocals, map<AllocaInst *, uint64_t> instrToIdxInst,
+													   vector<Instruction *> instList, map<AllocaInst *, string> instrToVarName,
+													   string funcName)
+{
 
 	string str;
 	raw_string_ostream strLogger(str);
 	strLogger << "INSIDE handleLocalPrimitiveUsesAfterNeck\n";
-	map<AllocaInst*, uint64_t> updatedInstrToIdx;
-	for (auto var : instrToIdx) {
-		std::vector<LoadInst*> loadInstUseGep;
+	map<AllocaInst *, uint64_t> updatedInstrToIdxInst;
+	for (auto var : instrToIdxInst)
+	{
+		std::vector<LoadInst *> loadInstUseGep;
 		bool isThereStoreInst = 0;
-		for (auto i : var.first->users()) {
-			if (returnIndex(instList, cast<Instruction>(i))
-					> neckIndex(module, instList, funcName)) {
+		for (auto i : var.first->users())
+		{
+			if (returnIndex(instList, cast<Instruction>(i)) > neckIndex(module, instList, funcName))
+			{
 				//								strLogger << "INS After neck:: " << *i << "\n";
-				if (auto si = dyn_cast<StoreInst>(i)) {
+				if (auto si = dyn_cast<StoreInst>(i))
+				{
 					isThereStoreInst = 1;
 					break;
 				}
 			}
 		}
 		if (!isThereStoreInst)
-			updatedInstrToIdx.emplace(var.first, var.second);
+			updatedInstrToIdxInst.emplace(var.first, var.second);
 	}
 	strLogger
-	<< "\n*****\nReplacing Load Intructions After neck (Primitive)...\n";
-	for (auto var : updatedInstrToIdx) {
+		<< "\n*****\nReplacing Load Intructions After neck (Primitive)...\n";
+	//check the users of alloc instructions after the neck
+	//TODO i might need to check the alloc isn't modified after the neck before making CC
+	//I can check that by making sure no store instr users after the neck
+	std::vector<llvm::LoadInst *> ldToRemove;
+	for (auto var : updatedInstrToIdxInst)
+	{
 		strLogger << "var: " << *var.first << "\n";
-		for (auto i : var.first->users()) {
-			strLogger << "\tUSER: " << *i <<"\n";
-
-			if (auto ld = dyn_cast<llvm::LoadInst>(i)) {
-				if (returnIndex(instList, cast<Instruction>(i))
-						> neckIndex(module, instList, funcName)
-						&& getVarName(instrToVarName,
-								cast<AllocaInst>(ld->getPointerOperand()))
-								!= "argc") {
+		for (auto usr : var.first->users())
+		{
+			strLogger << "\tUSER: " << *usr << "\n";
+			if (auto ld = dyn_cast<llvm::LoadInst>(usr))
+			{
+				//chk if the load instr is after the neck
+				if (returnIndex(instList, cast<Instruction>(usr)) > neckIndex(module, instList, funcName) && getVarName(instrToVarName,
+																														cast<AllocaInst>(ld->getPointerOperand())) != "argc")
+				{
+					//make sure the alloc instr has a name, some alloc instr don't have a name, so I avoid making CC
 					auto constVal = plocals.find(std::to_string(var.second));
 					if (constVal != plocals.end())
 						if (auto intType = dyn_cast<IntegerType>(
-								var.first->getType()->getElementType())) {
+								var.first->getType()->getElementType()))
+						{
 							auto val = llvm::ConstantInt::get(intType,
-									constVal->second);
+															  constVal->second);
 							strLogger << "\nLD replace.. \n";
 							strLogger << "\tFOUND: " << *var.first << " :: "
-									<< var.second << " :: " << *i << "\n";
-							//ReplaceInstWithValue(ld->getParent()->getInstList(), ld, val);
+									  << var.second << " :: " << *usr << "\n";
 							ld->replaceAllUsesWith(val);
-							//ld->eraseFromParent(); //TODO this stmt causes the problem. Work around is putting the ld inst that should be removed in a vector and then iterate the elements of the vector to remove the instr
+							ldToRemove.push_back(ld);
 						}
 				}
 			}
 		}
+		//		llvm::outs() << "****BEFORE ldToRemove\n";
+		//		for (auto ld : ldToRemove)
+		//			if (ld->getNumUses() == 0) {
+		//				ld->eraseFromParent();
+		//				strLogger << "\t\tRemoving converted Load instr: " << *ld
+		//						<< "\n";
+		//			}
 	}
 	logger << strLogger.str();
 }
 
 void LocalVariables::handlePtrToPrimitiveLocalVariables(Module &module,
-		map<uint64_t, pair<uint64_t, uint64_t>> &ptrToPrimtive, string funcName) {
+														map<uint64_t, pair<uint64_t, uint64_t>> &ptrToPrimtive,
+														string funcName)
+{
 	string str;
 	raw_string_ostream strLogger(str);
 	strLogger << "*****\nRun handlePtrToPrimitiveLocalVariables\n";
 	//	strLogger << "Size instList: " << instList.size() <<"\n";
 
-	map<uint64_t, Instruction*> idxToInst = getAllInstr(module);
-	map<AllocaInst*, pair<uint64_t, uint64_t>> instrToIdx;
+	map<uint64_t, Instruction *> idxInstToInst = getAllInstr(module);
+	map<AllocaInst *, pair<uint64_t, uint64_t>> instrToIdxInst;
 
-	//here I need to find the alloc instr based on actualIdx not the ptrIdx
-	for (auto ptr : ptrToPrimtive){
-		//		auto it = idxToInst.find(ptr.first);
-		auto it = idxToInst.find(ptr.second.first);
-		if (it != idxToInst.end()){
-			if (isa<AllocaInst>(it->second)){
+	//here I need to find the alloc instr based on actualIdxInst not the ptrIdxInst
+	for (auto ptr : ptrToPrimtive)
+	{
+		auto it = idxInstToInst.find(ptr.second.first);
+		if (it != idxInstToInst.end())
+		{
+			if (isa<AllocaInst>(it->second))
+			{
 				strLogger << "PTR:: " << *it->second << "\n";
-				//				instrToIdx.emplace(cast<AllocaInst>(it->second), ptr.first);
-				instrToIdx.emplace(cast<AllocaInst>(it->second), ptr.second);
+				instrToIdxInst.emplace(cast<AllocaInst>(it->second), ptr.second);
 			}
 		}
 	}
 
 	for (auto curF = module.getFunctionList().begin(), endF =
-			module.getFunctionList().end(); curF != endF; ++curF) {
+														   module.getFunctionList().end();
+		 curF != endF; ++curF)
+	{
 		string fn = curF->getName();
-		if (fn == "main") {
+		if (fn == "main")
+		{
 			strLogger
-			<< "*****\nStart Converting Pointer to Primitive locals to constant\n";
-			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
-				for (auto curI = curB->begin(); curI != curB->end(); curI++) {
-					if (returnIndex(instList, &*curI) < neckIndex(module, instList, funcName)){
+				<< "*****\nStart Converting Pointer to Primitive locals to constant\n";
+			for (auto curB = curF->begin(); curB != curF->end(); curB++)
+			{
+				for (auto curI = curB->begin(); curI != curB->end(); curI++)
+				{
+					if (returnIndex(instList, &*curI) < neckIndex(module, instList, funcName))
+					{
 						//handle load inst
-						if (auto ld = dyn_cast<LoadInst>(curI)) {
-							strLogger << "ptr oprd: " << *ld->getPointerOperand() << "---" << *ld->getPointerOperand()->getType() << "\n";
+						if (auto ld = dyn_cast<LoadInst>(curI))
+						{
+							strLogger << "ptr oprd: "
+									  << *ld->getPointerOperand() << "---"
+									  << *ld->getPointerOperand()->getType()
+									  << "\n";
 							//							auto al = dyn_cast<AllocaInst>(ld->getOperand(1));
-							//							auto inst = instrToIdx.find(cast<AllocaInst>(si->getOperand(1)));
+							//							auto inst = instrToIdxInst.find(cast<AllocaInst>(si->getOperand(1)));
 							//							auto val = llvm::ConstantInt::get(intType, inst->second.second);
 							//							ReplaceInstWithValue(curB->getInstList(), curI,
 							//																	val);
 							//handle store inst
-						} else if (auto si = dyn_cast<StoreInst>(curI)){
-							if (returnIndex(instList, si)
-									< neckIndex(module, instList, funcName)) {
+						}
+						else if (auto si = dyn_cast<StoreInst>(curI))
+						{
+							if (returnIndex(instList, si) < neckIndex(module, instList, funcName))
+							{
 								strLogger << "SI:  " << *si << "\n";
 								//strLogger << "\toperands:: " << si->getNumOperands() << " ---opr0: " << *si->getOperand(0) <<  " ---opr1: " << *si->getOperand(1) << "\n";
 
 								if (isa<llvm::PointerType>(
-										si->getOperand(1)->getType()) && isa<AllocaInst>(si->getOperand(1))){
-									//if(isa<AllocaInst>(si->getOperand(1))){
-									auto al = dyn_cast<AllocaInst>(si->getOperand(1));
-									auto inst = instrToIdx.find(cast<AllocaInst>(si->getOperand(1)));
-									if (inst != instrToIdx.end()) {
-										strLogger << "FOUND: " << *inst->first << " --" << *al->getType()->getElementType() << "\n";
-										strLogger << "\t" << inst->second.first << " " << inst->second.second << "\n";
-										if (auto intType = dyn_cast<IntegerType>(al->getOperand(0)->getType())) {
-											auto val = llvm::ConstantInt::get(intType, inst->second.second);
-											strLogger
-											<< "\nSI replace.. \n";
+										si->getOperand(1)->getType()) &&
+									isa<AllocaInst>(si->getOperand(1)))
+								{
+									auto al = dyn_cast<AllocaInst>(
+										si->getOperand(1));
+									auto inst = instrToIdxInst.find(
+										cast<AllocaInst>(
+											si->getOperand(1)));
+									if (inst != instrToIdxInst.end())
+									{
+										strLogger << "FOUND: " << *inst->first
+												  << " --"
+												  << *al->getType()->getElementType()
+												  << "\n";
+										strLogger << "\t" << inst->second.first
+												  << " " << inst->second.second
+												  << "\n";
+										if (auto intType =
+												dyn_cast<IntegerType>(
+													al->getOperand(0)->getType()))
+										{
+											auto val = llvm::ConstantInt::get(
+												intType,
+												inst->second.second);
+											strLogger << "\nSI replace.. \n";
 											strLogger << "\tFOUND: "
-													<< *inst->first
-													<< " :: "
-													<< inst->second.first
-													<< " :: " << *curI
-													<< "\n";
-											StoreInst *str = new StoreInst(
-													val,
-													curI->getOperand(1));
+													  << *inst->first << " :: "
+													  << inst->second.first
+													  << " :: " << *curI << "\n";
+											StoreInst *str = new StoreInst(val,
+																		   curI->getOperand(1));
 											ReplaceInstWithInst(
-													curB->getInstList(),
-													curI, str);
+												curB->getInstList(), curI,
+												str);
 											strLogger << "\tAfter conv: "
-													<< *curI << "\n";
+													  << *curI << "\n";
 										}
 									}
 								}
@@ -945,44 +1091,53 @@ void LocalVariables::handlePtrToPrimitiveLocalVariables(Module &module,
 	logger << strLogger.str();
 }
 
-
-void LocalVariables::handleStringVars(Module &module, map<uint64_t, pair<uint64_t,
-		string>> strList, string funcName){
+void LocalVariables::handleStringVars(Module &module,
+									  map<uint64_t, pair<uint64_t, string>> strList, string funcName)
+{
 	IRBuilder<> builder(module.getContext());
-	//	ArrayType* ArrayTy_0 = ArrayType::get(IntegerType::get(module.getContext(), 8), 5);
 	string str;
 	raw_string_ostream strLogger(str);
 	strLogger << "*****\nRun handleStringVars\n";
-	for (auto elem : strList){
+	for (auto elem : strList)
+	{
 		string constName = to_string(elem.first);
 		strLogger << "ELEM: " << elem.first;
 		auto it = instList[elem.first];
 		strLogger << "\tFound elemInst:: " << *it << "\n";
-		Constant* ary = llvm::ConstantDataArray::getString(module.getContext(), elem.second.second, true);
-		GlobalVariable* gv = new GlobalVariable(module, ary->getType(), true,
-				GlobalValue::LinkageTypes::PrivateLinkage,
-				ary, "");
+		Constant *ary = llvm::ConstantDataArray::getString(module.getContext(),
+														   elem.second.second, true);
+		GlobalVariable *gv = new GlobalVariable(module, ary->getType(), true,
+												GlobalValue::LinkageTypes::PrivateLinkage, ary, "");
 		gv->setInitializer(ary);
 		gv->setName(constName);
-		Value *gv_i_ref =
-				builder.CreateConstGEP2_32(
-						cast<PointerType>(gv->getType())->getElementType(),gv, 0, 0);
+		Value *gv_i_ref = builder.CreateConstGEP2_32(
+			cast<PointerType>(gv->getType())->getElementType(), gv, 0, 0);
 
-		if (auto al = dyn_cast<AllocaInst>(it)){
+		if (auto al = dyn_cast<AllocaInst>(it))
+		{
 			strLogger << "Found Alloc inst correspong to elem\n";
 			//iterate all uses of the instr
-			for (auto usr : al->users()){
-				if (returnIndex(instList, cast<Instruction>(usr)) > neckIndex(module, instList, funcName)){
-					strLogger << "users:: " << *usr <<"\n";
-					if (auto ld = dyn_cast<LoadInst>(usr)){
+			for (auto usr : al->users())
+			{
+				if (returnIndex(instList, cast<Instruction>(usr)) > neckIndex(module, instList, funcName))
+				{
+					strLogger << "users:: " << *usr << "\n";
+					if (auto ld = dyn_cast<LoadInst>(usr))
+					{
 						strLogger << "\tFound LD \n";
-						StoreInst *str = new StoreInst(gv_i_ref, ld->getPointerOperand());
+						StoreInst *str = new StoreInst(gv_i_ref,
+													   ld->getPointerOperand());
 						str->insertBefore(ld);
-					} else if (auto st = dyn_cast<StoreInst>(usr)){
+					}
+					else if (auto st = dyn_cast<StoreInst>(usr))
+					{
 						strLogger << "\tFound ST \n";
 						//i need to replace the old GEP with a new GEP
-						if (auto opr = dyn_cast<GetElementPtrInst>(st->getOperand(0))){
-							StoreInst *str = new StoreInst(gv_i_ref, st->getOperand(1));
+						if (auto opr = dyn_cast<GetElementPtrInst>(
+								st->getOperand(0)))
+						{
+							StoreInst *str = new StoreInst(gv_i_ref,
+														   st->getOperand(1));
 							ReplaceInstWithInst(st, str);
 						}
 					}
@@ -994,29 +1149,32 @@ void LocalVariables::handleStringVars(Module &module, map<uint64_t, pair<uint64_
 }
 
 void LocalVariables::handlePrimitiveLocalVariables(Module &module,
-		map<string, uint64_t> &plocals, string funcName) {
+												   map<string, uint64_t> &plocals, string funcName)
+{
 	string str;
 	raw_string_ostream strLogger(str);
 	strLogger << "*****\nRun handleLocalVariables\n";
-	//	set<BasicBlock> visitedBbs = populateBasicBlocks();
-	map<AllocaInst*, uint64_t> stackVarToIdx;
+	map<AllocaInst *, uint64_t> stackVarToIdxInst;
 
-	map<uint64_t, Instruction*> mapIdxInst = getAllInstr(module);
+	map<uint64_t, Instruction *> mapIdxInstInst = getAllInstr(module);
 
-	map<AllocaInst*, std::string> instrToVarName;
+	map<AllocaInst *, std::string> instrToVarName;
 
 	//I need to update plocals because I noticed some vars are included but their declaration is after the neck.
 	//So I need to remove these stack vars
 	map<string, uint64_t> updatedPlocals;
 
 	strLogger
-	<< "*****\nFind list of matching instructions that have index in locals.\n";
+		<< "*****\nFind list of matching instructions that have index in locals.\n";
 	for (auto curF = module.getFunctionList().begin(), endF =
-			module.getFunctionList().end(); curF != endF; ++curF) {
+														   module.getFunctionList().end();
+		 curF != endF; ++curF)
+	{
 		string fn = curF->getName();
 		//the assumption is that majority of the analysis on the local variables
 		//should be conducted inside the main, this where the neck is
-		if (fn == "main") {
+		if (fn == "main")
+		{
 			//Get mapping between allocation instruction and its index in the locals file
 			//this step is necessary to identify the corresponding value to each local variable
 			//local variables are alloca instructions
@@ -1027,56 +1185,71 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 			//1- check if there is a br instr before it
 			//2- if so, reduce i by one
 			uint64_t i = 0;
-			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
-				for (auto curI = curB->begin(); curI != curB->end(); ++curI) {
+			for (auto curB = curF->begin(); curB != curF->end(); curB++)
+			{
+				for (auto curI = curB->begin(); curI != curB->end(); ++curI)
+				{
 					//to keep the index i consistent and matching the one in KLEE
 					//strLogger <<"i: " << i << " --- " << *curI<< "\n";
-					if (auto br = dyn_cast<BranchInst>(&*curI)) {
+					if (auto br = dyn_cast<BranchInst>(&*curI))
+					{
 						//check if the previous instr is br
-						auto inst = mapIdxInst.find(i - 1);
-						if (inst != mapIdxInst.end()
-								&& isa<BranchInst>(inst->second)) {
+						auto inst = mapIdxInstInst.find(i - 1);
+						if (inst != mapIdxInstInst.end() && isa<BranchInst>(inst->second))
+						{
 							//strLogger << "****Found TWO Branches\n";
 							--i;
 						}
 					}
 					auto id = plocals.find(std::to_string(i));
-					if (auto al = dyn_cast<llvm::AllocaInst>(curI)) {
-						if (id != plocals.end()) {
+					if (auto al = dyn_cast<llvm::AllocaInst>(curI))
+					{
+						if (id != plocals.end())
+						{
 							if (!isa<StructType>(
-									al->getType()->getElementType())){
-								stackVarToIdx.emplace(cast<llvm::AllocaInst>(curI),
-										i);
+									al->getType()->getElementType()))
+							{
+								stackVarToIdxInst.emplace(
+									cast<llvm::AllocaInst>(curI), i);
 							}
 						}
 						//obtain the names of local variables, if applicable
-						if (!al->hasName()) {
+						if (!al->hasName())
+						{
 							for (auto I = curB->begin(); I != curB->end();
-									I++) {
+								 I++)
+							{
 								if (DbgDeclareInst *dbg = dyn_cast<
-										DbgDeclareInst>(&(*I))) {
+										DbgDeclareInst>(&(*I)))
+								{
 									if (const AllocaInst *dbgAI = dyn_cast<
 											AllocaInst>(dbg->getAddress()))
-										if (dbgAI == al) {
-											auto ff = returnIndex(instList, dbg) < neckIndex(module, instList, funcName);
+										if (dbgAI == al)
+										{
+											auto ff = returnIndex(instList, dbg) < neckIndex(module,
+																							 instList, funcName);
 											if (id != plocals.end() && ff)
-												updatedPlocals.emplace(id->first, id->second);
+												updatedPlocals.emplace(
+													id->first, id->second);
 
 											if (DILocalVariable *varMD =
-													dbg->getVariable()) {
+													dbg->getVariable())
+											{
 												strLogger << *al << "\n";
 												strLogger << "\tVarName: "
-														<< varMD->getName().str()
-														<< "\n";
+														  << varMD->getName().str()
+														  << "\n";
 												instrToVarName.emplace(
-														cast<llvm::AllocaInst>(
-																curI),
-																varMD->getName().str());
+													cast<llvm::AllocaInst>(
+														curI),
+													varMD->getName().str());
 											}
 										}
 								}
 							}
-						} else {
+						}
+						else
+						{
 							strLogger << "NAME:: " << al->getName() << "\n";
 						}
 					}
@@ -1087,89 +1260,101 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 	}
 
 	for (auto curF = module.getFunctionList().begin(), endF =
-			module.getFunctionList().end(); curF != endF; ++curF) {
+														   module.getFunctionList().end();
+		 curF != endF; ++curF)
+	{
 		string fn = curF->getName();
-		if (fn == "main") {
-			strLogger
-			<< "*****\nStart Converting Primitive locals to constant\n";
-			for (auto curB = curF->begin(); curB != curF->end(); curB++) {
-				for (auto curI = curB->begin(); curI != curB->end(); curI++) {
+		if (fn == "main")
+		{
+			strLogger << "*****\nStart CC Primitive locals\n";
+			for (auto curB = curF->begin(); curB != curF->end(); curB++)
+			{
+				for (auto curI = curB->begin(); curI != curB->end(); curI++)
+				{
 					//i need to add if store isnt and 1)its 2nd operand is alloc instr and 2)1st operand is constvalue, the
 					//do the replacement
-					if (auto ld = dyn_cast<LoadInst>(curI)) {
-						//						strLogger << "lstSize: " << instList.size() << " LD idx: " << returnIndex(instList, ld) << "--" << *ld <<"\n";
-						if (returnIndex(instList, ld)
-								< neckIndex(module, instList, funcName))//do the conversion till the neck
+					if (auto ld = dyn_cast<LoadInst>(curI))
+					{
+						//						strLogger << "lstSize: " << instList.size() << " LD idxInst: " << returnIndex(instList, ld) << "--" << *ld <<"\n";
+						if (returnIndex(instList, ld) < neckIndex(module, instList, funcName)) //do the conversion till the neck
 							if (auto opr = dyn_cast<llvm::AllocaInst>(
-									ld->getPointerOperand())) {
+									ld->getPointerOperand()))
+							{
 								//I need to ignore some local variables like argc, because the number of arguments will be
 								//different after running the specalized apps. So argc variable should be delayed
-								//auto varName = instrToVarName.find(opr);
-								//if (varName != instrToVarName.end())
 								if (getVarName(instrToVarName, opr) == "argc")
 									continue;
 
 								//here I need to check the mapping list of local variables and their values
-								auto inst = stackVarToIdx.find(opr);
-								if (inst != stackVarToIdx.end()) {
+								auto inst = stackVarToIdxInst.find(opr);
+								if (inst != stackVarToIdxInst.end())
+								{
 									auto constVal = plocals.find(
-											std::to_string(inst->second));
-									if (constVal != plocals.end()) {
+										std::to_string(inst->second));
+									if (constVal != plocals.end())
+									{
 										if (auto intType =
 												dyn_cast<IntegerType>(
-														opr->getType()->getElementType())) {
+													opr->getType()->getElementType()))
+										{
 											auto val = llvm::ConstantInt::get(
-													intType, constVal->second);
+												intType, constVal->second);
 											strLogger << "\nLD replace.. \n";
 											strLogger << "\tFOUND: "
-													<< *inst->first << " :: "
-													<< inst->second << " :: "
-													<< *curI << "\n";
+													  << *inst->first << " :: "
+													  << inst->second << " :: "
+													  << *curI << "\n";
 											ReplaceInstWithValue(
-													curI->getParent()->getInstList(),
-													curI, val);
+												curI->getParent()->getInstList(),
+												curI, val);
 										}
 									}
 								}
 							}
-					} else if (auto si = dyn_cast<StoreInst>(curI)) {
-						if (returnIndex(instList, si)
-								< neckIndex(module, instList, funcName)) {
+					}
+					else if (auto si = dyn_cast<StoreInst>(curI))
+					{
+						if (returnIndex(instList, si) < neckIndex(module, instList, funcName))
+						{
 							//							strLogger << "SI:  " << *si << "\n";
 							//							strLogger << "\toperands:: " << si->getNumOperands() << " ---opr0: " << *si->getOperand(0) <<  " ---opr1: " << *si->getOperand(1) << "\n";
 
 							if (isa<ConstantInt>(si->getOperand(0)))
 								if (auto opr = dyn_cast<llvm::AllocaInst>(
-										si->getOperand(1))) {
-									auto inst = stackVarToIdx.find(opr);
-									if (inst != stackVarToIdx.end()) {
+										si->getOperand(1)))
+								{
+									auto inst = stackVarToIdxInst.find(opr);
+									if (inst != stackVarToIdxInst.end())
+									{
 										auto constVal = plocals.find(
-												std::to_string(inst->second));
-										if (constVal != plocals.end()) {
+											std::to_string(inst->second));
+										if (constVal != plocals.end())
+										{
 											if (auto intType =
 													dyn_cast<IntegerType>(
-															opr->getType()->getElementType())) {
+														opr->getType()->getElementType()))
+											{
 												auto val =
-														llvm::ConstantInt::get(
-																intType,
-																constVal->second);
+													llvm::ConstantInt::get(
+														intType,
+														constVal->second);
 												strLogger
-												<< "\nSI replace.. \n";
+													<< "\nSI replace.. \n";
 												strLogger << "\tFOUND: "
-														<< *inst->first
-														<< " :: "
-														<< inst->second
-														<< " :: " << *curI
-														<< "\n";
+														  << *inst->first
+														  << " :: "
+														  << inst->second
+														  << " :: " << *curI
+														  << "\n";
 
 												StoreInst *str = new StoreInst(
-														val,
-														curI->getOperand(1));
+													val,
+													curI->getOperand(1));
 												ReplaceInstWithInst(
-														curB->getInstList(),
-														curI, str);
+													curB->getInstList(),
+													curI, str);
 												strLogger << "\tAfter conv: "
-														<< *curI << "\n";
+														  << *curI << "\n";
 											}
 										}
 									}
@@ -1181,68 +1366,69 @@ void LocalVariables::handlePrimitiveLocalVariables(Module &module,
 		}
 	}
 
-	//	strLogger << "sizeUPDATED:: " <<updatedPlocals.size() << "\n";
-	for (auto it : updatedPlocals)
-		strLogger << it.first << it.second << "\n";
-
-	strLogger << "size:: " <<plocals.size() << "\n";
-	for (auto it : plocals)
-		strLogger << it.first << it.second << "\n";
-
 	logger << strLogger.str();
-	handleLocalPrimitiveUsesAfterNeck(module, updatedPlocals, stackVarToIdx, instList,
-			instrToVarName, funcName);
+	handleLocalPrimitiveUsesAfterNeck(module, updatedPlocals, stackVarToIdxInst,
+									  instList, instrToVarName, funcName);
 }
 
-void LocalVariables::testing(Module &module){
+void LocalVariables::testing(Module &module)
+{
 	string str;
 	raw_string_ostream strLogger(str);
 	strLogger << "Inside test procedure...\n";
-	for (auto g = module.global_begin(); g != module.global_end(); g++){
+	for (auto g = module.global_begin(); g != module.global_end(); g++)
+	{
 		strLogger << "g: " << *g << "\n";
-		for (Value::use_iterator u = g->use_begin(); u != g->use_end(); u++){
+		for (Value::use_iterator u = g->use_begin(); u != g->use_end(); u++)
+		{
 			strLogger << "use: " << *u->getUser() << "\n";
 		}
 	}
 
-	for (auto f = module.getFunctionList().begin(); f != module.getFunctionList().end(); f++){
-		strLogger << "Func: " << f->getName() << "\n";
-		for (auto bb = f->begin(); bb != f->end(); bb++){
-			for (auto i = bb->begin(); i != bb->end(); i++){
-				if (auto st = dyn_cast<StoreInst>(i)){
+	for (auto f = module.getFunctionList().begin();
+		 f != module.getFunctionList().end(); f++)
+	{
+		strLogger << "Func: " << f->getName() << "---#USERS: "
+				  << f->getNumUses() << "\n";
+		for (auto bb = f->begin(); bb != f->end(); bb++)
+		{
+			for (auto i = bb->begin(); i != bb->end(); i++)
+			{
+				if (auto st = dyn_cast<StoreInst>(i))
+				{
 					/*strLogger << "inst: " << *i << "\n";
-					strLogger << "\topr0: " << *st->getOperand(0) <<"\n";
-					strLogger << "\topr1: " << *st->getOperand(1) <<"\n";
-					for (auto us : st->users()){
-						strLogger << "usr: " << *us <<"\n";
-					}
-					for (auto u = st->use_begin(); u != st->use_end(); u++){
-						strLogger << "use: " << *u <<"\n";
-					}
-					for (auto u = st->user_begin(); u != st->user_end(); u++){
-						strLogger << "user: " << *u << "\n";
-					}
-					for (auto u = st->uses().begin(); u != st->uses().end(); u++){
-						strLogger << "uses: " << *u << "\n";
-					}*/
+					 strLogger << "\topr0: " << *st->getOperand(0) <<"\n";
+					 strLogger << "\topr1: " << *st->getOperand(1) <<"\n";
+					 for (auto us : st->users()){
+					 strLogger << "usr: " << *us <<"\n";
+					 }
+					 for (auto u = st->use_begin(); u != st->use_end(); u++){
+					 strLogger << "use: " << *u <<"\n";
+					 }
+					 for (auto u = st->user_begin(); u != st->user_end(); u++){
+					 strLogger << "user: " << *u << "\n";
+					 }
+					 for (auto u = st->uses().begin(); u != st->uses().end(); u++){
+					 strLogger << "uses: " << *u << "\n";
+					 }*/
 					outs() << "str: " << *st << "\n";
-					outs() << "\tPTR oprnd: " << *st->getPointerOperand() << "\n";
+					outs() << "\tPTR oprnd: " << *st->getPointerOperand()
+						   << "\n";
 				}
 				/*if (auto ld = dyn_cast<LoadInst>(i)){
-					strLogger << "LD: " << *ld << "\n";
-					for (User *user : ld->users()){
-						Instruction* I = dyn_cast<Instruction>(user);
-						strLogger << "user: " << *I << "\n";
-					}
-					for (Use& user : ld->uses()){
-						Instruction* I = dyn_cast<Instruction>(user);
-						strLogger << "uses: " << *I << "\n";
-					}
-				}*/
+				 strLogger << "LD: " << *ld << "\n";
+				 for (User *user : ld->users()){
+				 Instruction* I = dyn_cast<Instruction>(user);
+				 strLogger << "user: " << *I << "\n";
+				 }
+				 for (Use& user : ld->uses()){
+				 Instruction* I = dyn_cast<Instruction>(user);
+				 strLogger << "uses: " << *I << "\n";
+				 }
+				 }*/
 			}
 		}
 	}
 
 	logger << strLogger.str();
 }
-

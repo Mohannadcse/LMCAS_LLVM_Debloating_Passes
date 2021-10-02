@@ -16,6 +16,4 @@ using namespace std;
 
 vector<std::string> splitString(std::string &str, char delim);
 
-
-
 #endif /* SOURCE_DIRECTORY__DEBLOAT_INCLUDE_UTILITY_H_ */

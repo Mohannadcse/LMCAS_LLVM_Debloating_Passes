@@ -15,8 +15,8 @@ void CleaningUpStuff::dfsutils(CallGraph &cg, Function* f, std::set<const Functi
 	string str;
 	raw_string_ostream strLogger(str);
 	for (auto n = cg.begin(); n !=cg.end(); n++){
+
 		if (n->first && n->first->getFunction().getName() == f->getName()){
-//		if (n->first && n->first->getFunction() == f){
 			strLogger << "Callee: " << n->first->getName() <<"\n";
 			if (n->second){
 				CallGraphNode *cgn = n->second.get();
@@ -58,7 +58,7 @@ void CleaningUpStuff::removeUnusedStuff(Module &module) {
 				CallGraphNode *cgn = n->second.get();
 				strLogger << "\tSize: " << cgn->size() << "\n";
 				for (int i = 0; i < cgn->size(); i++){
-					if(cgn->operator[](i)->getFunction()){//&& cgn->operator[](i)->getFunction()->isDeclaration()
+					if(cgn->operator[](i)->getFunction()){
 						strLogger <<"\tidx:"<< i << ": " <<cgn->operator[](i)->getFunction()->getName()<<"\n";
 						reachableFunctionsFromMain.insert(cgn->operator[](i)->getFunction());
 						dfsutils(cg, cgn->operator[](i)->getFunction(), reachableFunctionsFromMain);
@@ -152,7 +152,6 @@ void CleaningUpStuff::removeUnusedStuff(Module &module) {
 
 	for (auto curG = module.getGlobalList().begin();
 			curG != module.getGlobalList().end(); curG++) {
-		//		strLogger << "gblName: " << curG->getName() << " NumUses= " << curG->getNumUses() << "\n";
 		if (curG->getNumUses() == 0)
 			gblVarsToBeRemoved.push_back(&*curG);
 	}
@@ -166,11 +165,6 @@ void CleaningUpStuff::removeUnusedStuff(Module &module) {
 		g->eraseFromParent();
 	}
 
-	/*
-	 strLogger << "localVarsToBeRemoved: " << localVarsToBeRemoved.size() << "\n";
-	 strLogger << "storeInstToBeRemoved: " << storeInstToBeRemoved.size() << "\n";
-	 */
-
 	for (auto str : storeInstToBeRemoved) {
 		str->eraseFromParent();
 	}
@@ -179,46 +173,6 @@ void CleaningUpStuff::removeUnusedStuff(Module &module) {
 		l->eraseFromParent();
 	}
 
-
-
-	/*strLogger << "Reachable Funcs: \n";
-	for (auto e : reachableFunctionsFromMain){
-		strLogger << e->getName() << " >> ";
-	}
-	strLogger << "\n\n";*/
-
-	strLogger << "NumFuncAfterClean: " << module.getFunctionList().size() << "\n";
-
-	/*strLogger << "numFunc: " << module.getFunctionList().size() << "\n";
-	typedef std::pair <Function*, std::pair <unsigned, unsigned> > func_ty;
-	std::vector<func_ty> funcs;
-	for (auto it = scc_begin(&cg); !it.isAtEnd(); ++it) {
-		auto &scc = *it;
-		for (CallGraphNode *cgn : scc) {
-			if (cgn->getFunction() && !cgn->getFunction()->isDeclaration()) {
-				//		    funcs.push_back(
-				//		      {cgn->getFunction(),
-				//		        {cgn->getNumReferences(), std::distance(cgn->begin(), cgn->end())}});
-				strLogger << "FFF:: " << cgn->getFunction()->getName() << " --SIZE:: " << cgn->size()<< "\n";
-				for (auto m = cgn->begin(); m != cgn->end(); m++){
-					strLogger << "callee: " << *m->first.operator ->() << "\n";
-				}
-			}
-		}
-	}
-	for (auto it : funcs){
-		strLogger << "FUNC: " << it.first->getName() << "\n";
-		strLogger << "\tCallers: " << it.second.first << " :: Callees: " << it.second.second << "\n";
-	}
-
-	strLogger << "\nDFS\n";
-	auto m= depth_first(&cg);
-	for (auto it = m.begin(); it != m.end(); it++){
-		if (it->getFunction()){
-			dbgs() << "F: " << it->getFunction()->getName() << "\n";
-			dbgs() << "\tit->size(): " << it->size() <<"\n";
-		}
-	}*/
 	logger << strLogger.str();
 }
 

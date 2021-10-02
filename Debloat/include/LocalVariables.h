@@ -34,12 +34,13 @@ private:
 	void handleLocalPrimitiveUsesAfterNeck(Module &, map<string, uint64_t> &,
 			map<AllocaInst*, uint64_t>, vector<Instruction*>, map<AllocaInst*, string>, string);
 	void handlePtrToStructAfterNeck(Module &,
-			map<tuple<string, uint64_t, int>, uint64_t> &, int &, string);
+			map<tuple<string, uint64_t, int>, uint64_t> &, string);
 	void handlePtrToNestedStructAfterNeck(map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t>&, raw_string_ostream &);
 	void replacePtrToStructPostNeck(vector<pair<GetElementPtrInst*, postNeckGepInfo>>, raw_string_ostream &);
-	void inspectInitalizationPreNeck(Module&, vector<Instruction*>,
-			map<tuple<string, uint64_t, int>, uint64_t> &, int &, string);
-	void handleStructInOtherMethods(Function*, map<tuple<string, uint64_t, int>, uint64_t> &, int &, raw_string_ostream&);
+	// void inspectInitalizationPreNeck(Module&, map<tuple<string, uint64_t, int>, uint64_t> &, string);
+	void inspectInitalizationPreNeck(Module&, map<tuple<string, uint64_t, int>, uint64_t> &, string);
+	// void handleStructInOtherMethods(Function*, map<tuple<string, uint64_t, int>, uint64_t> &, raw_string_ostream&);
+	void handleStructInOtherMethods(Function*, map<tuple<string, uint64_t, int>, uint64_t> &, raw_string_ostream&, int);
 
 	bool processGepInstrStruct(llvm::GetElementPtrInst *gep,
 			tuple<string, uint64_t, int> structInfo);
@@ -49,6 +50,12 @@ private:
 			tuple<string, string, uint64_t, uint64_t, int> structInfo, int flag);
 
 	void constantConversionStrctVars(Module &, GetElementPtrInst*, string, uint64_t, raw_string_ostream &, int cntxtFlg);
+
+	/*
+	 * the following functions handle various cases of nested structs
+	 */
+	void identifyNestedStrctPattern(Module &, map <tuple<string, string, uint64_t, uint64_t, int>, uint64_t>&, string);
+
 
 public:
 	void testing(Module&);
