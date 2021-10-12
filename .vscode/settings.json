@@ -1,13 +1,13 @@
 {
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "cmake.buildEnvironment": {
-        "-DLLVM_DIR": "/home/ma481/Downloads/LLVM_6.0/lib/cmake/llvm"
+        "-DLLVM_DIR": "/home/ma481/Downloads/LLVM_10.0/lib/cmake/llvm"
     },
-    "C_Cpp.default.compilerPath": "/home/ma481/Downloads/LLVM_6.0/bin/clang",
+    "C_Cpp.default.compilerPath": "/home/ma481/Downloads/LLVM_10.0/bin/clang",
     "C_Cpp.default.includePath": [
-        "/home/ma481/Downloads/LLVM_6.0/lib"
+        "/home/ma481/Downloads/LLVM_10.0/lib"
     ],
     "C_Cpp.default.intelliSenseMode": "linux-clang-x64",
-    "cmake.configureArgs": ["-DLLVM_DIR=/home/ma481/Downloads/LLVM_6.0/lib/cmake/llvm"]
+    "cmake.configureArgs": ["-DLLVM_DIR=/home/ma481/Downloads/LLVM_10.0/lib/cmake/llvm"]
 
 }

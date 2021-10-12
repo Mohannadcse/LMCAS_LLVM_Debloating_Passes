@@ -3,7 +3,7 @@
         {
             "type": "cppbuild",
             "label": "C/C++: clang build active file",
-            "command": "/home/ma481/Downloads/LLVM_6.0/bin/clang",
+            "command": "/home/ma481/Downloads/LLVM_10.0/bin/clang",
             "args": [
                 "-g",
                 "${file}",

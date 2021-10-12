@@ -367,7 +367,7 @@ void ProfilerPass::visitInstruction(Instruction &I) {
 }
 
 ProfilerPass::ProfilerPass() :
-		ModulePass(ID), DL(nullptr), TLI(nullptr), TotalFuncs("TotalFuncs",
+		ModulePass(ID), DL(nullptr), TLIWrapper(nullptr), TLI(nullptr), TotalFuncs("TotalFuncs",
 				"Number of functions"), TotalSpecFuncs("TotalSpecFuncs",
 				"Number of specialized functions")
 				//, TotalBounceFuncs("TotalBounceFuncs", "Number of bounced functions added by devirt")
@@ -409,6 +409,7 @@ bool ProfilerPass::runOnFunction(Function &F) {
 	DbgFd << "INSIDE runOnFunction\n";
 	DbgFd << "+++++++++++++++++++++++++++++++++";
 	DbgFd << "FunctionName: " << F.getName().str()<<"\n";
+	TLI = &(TLIWrapper->getTLI(F));
 	visit(F);
 	return false;
 }
@@ -416,7 +417,8 @@ bool ProfilerPass::runOnFunction(Function &F) {
 bool ProfilerPass::runOnModule(Module &M) {
 	DbgFd << "INSIDE runOnModule\n";
 	DL = &M.getDataLayout();
-	TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+	// TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+	TLIWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
 	Ctx = &M.getContext();
 
 	if (ShowCallGraphInfo) {

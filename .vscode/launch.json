@@ -8,7 +8,7 @@
             "name": "clang - Build and debug active file",
             "type": "cppdbg",
             "request": "launch",
-            "program": "/home/ma481/Downloads/LLVM_6.0/bin/opt",
+            "program": "/home/ma481/Downloads/LLVM_10.0/bin/opt",
             "args": [
                 "-load",
                 "/home/ma481/Downloads/LLVM_Debloating_Passes/build/Debloat/libLLVMDebloat.so",
