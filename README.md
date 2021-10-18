@@ -9,7 +9,7 @@ This repo contains 2 LLVM passes:
 Building steps:
 ===============
 
-The following steps use `LLVM 6.0`. You can build your own LLVM pass or download a precompiled version
+The following steps use `LLVM 10.0`. You can build your own LLVM pass or download a precompiled version
 
 1- clone the repo
 
@@ -17,7 +17,7 @@ The following steps use `LLVM 6.0`. You can build your own LLVM pass or download
 
 3- Run CMake with the path to the LLVM source:
 
-	cmake -DLLVM_DIR=<path-to-llvm>/lib/cmake/llvm \
+	cmake -DLLVM_DIR=<path-to-llvm>/lib/cmake/llvm -std=c++14 \
 			../LLVM_Debloating_Passes
 	
 4- `make`

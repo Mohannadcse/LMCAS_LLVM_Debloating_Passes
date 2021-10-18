@@ -71,6 +71,13 @@ void GlobalVariables::handleGlobalVariables(Module &module, map<string, uint64_t
 		logger << kv.first << " " << kv.second << "\n";
 	}
 
+	for (auto &gbl : module.globals()){
+		if (gbl.getName() == "packets_captured")
+			for (auto usr : gbl.users()){
+				outs() << "usr: " << *usr << "\n";
+			}
+	}
+
 	/*
 	 * I created a map to store the LD instr and it's corresponding value to handle the following situation, where there are
 	 * two subsequent LD instr, so when I ReplaceInstWithValue, the counter will be incremanted and thus miss converting the 2nd LD

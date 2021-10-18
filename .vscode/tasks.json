@@ -6,6 +6,7 @@
             "command": "/home/ma481/Downloads/LLVM_10.0/bin/clang",
             "args": [
                 "-g",
+                "-std=c++14",
                 "${file}",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}"
