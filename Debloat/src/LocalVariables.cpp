@@ -15,29 +15,13 @@
 #include "llvm/IR/Value.h"
 
 namespace lmcas {
-// void LocalVariables::initalizeInstList(Module &module, string funcName) {
-//   for (auto curF = module.getFunctionList().begin(),
-//             endF = module.getFunctionList().end();
-//        curF != endF; ++curF) {
-//     string fn = curF->getName();
-//     if (fn == funcName) {
-//       uint64_t i = 0;
-//       for (auto curB = curF->begin(); curB != curF->end(); curB++)
-//         for (auto curI = curB->begin(); curI != curB->end(); curI++, i++) {
-//           Instruction *inst = &*curI;
-//           instList.push_back(inst);
-//           if (auto cs = dyn_cast<CallInst>(curI))
-//             if (cs->getCalledFunction())
-//               if (cs->getCalledFunction()->getName() == "klee_dump_memory")
-//                 break;
-//         }
-//     }
-//   }
-// }
-
-/*
- * this method checks if the gep is matching any of the pointer to struct
+/**
+ * @brief this method checks if the gep is matching any of the pointer to struct
  * variables
+ *
+ * @param gep
+ * @param structInfo
+ * @return * this struct*
  */
 bool LocalVariables::processGepInstrPtrStruct(
     llvm::GetElementPtrInst *gep, tuple<string, uint64_t, int> structInfo) {
@@ -84,11 +68,18 @@ bool LocalVariables::processGepInstrStruct(
   return ret;
 }
 
-/*
- * cntxtFlg is used to recognize different contexts where this function is
- * called. This flag is also used for handling variables called by address when
- * their address are passed as parameters, so we don't need to check the neck
- * location we achieve this by setting the value of this flag to zero
+/**
+ * @brief cntxtFlg is used to recognize different contexts where this function
+ * is called. This flag is also used for handling variables called by address
+ * when their address are passed as parameters, so we don't need to check the
+ * neck location we achieve this by setting the value of this flag to zero
+ *
+ * @param mainGEP
+ * @param elemGEP
+ * @param structInfo
+ * @param cntxtFlg
+ * @return true
+ * @return false
  */
 bool LocalVariables::processGepInstrNestedStruct(
     llvm::GetElementPtrInst *mainGEP, llvm::GetElementPtrInst *elemGEP,
@@ -188,8 +179,8 @@ void LocalVariables::constantConversionStrctVars(
   }
 }
 
-/*
- * The main logic to convert nestedstruct variables to constant:
+/**
+ * @brief The main logic to convert nestedstruct variables to constant:
  * 1- Search for GEP that matches the mainStrct, its index, and the index of
  * corresponding AllocInstr 2- Loop over the users of the found GEP 3- If the
  * user is GEP and matches the elemStrct 4- then we can proceed with CC: 4:1-
@@ -198,6 +189,11 @@ void LocalVariables::constantConversionStrctVars(
  *
  * The nested struct pattern (nested struct nested elem) handled here: GEP main
  * -> GEP elem -> store/load instr
+ *
+ * @param module
+ * @param vars
+ * @param funcName
+ * @param neckCaller
  */
 void LocalVariables::handleNestedStrct(
     Module &module,
@@ -274,14 +270,19 @@ void LocalVariables::handleNestedStrct(
   logger << strLogger.str();
 }
 
-/*
- * The main logic to convert ptr to strct in a nestedstruct variables to
+/**
+ * @brief The main logic to convert ptr to strct in a nestedstruct variables to
  * constant: 1- Search for GEP that matches the mainStrct, its index, and the
  * index of corresponding AllocInstr 2- Loop over the users of the found GEP 3-
  * If the user is LoadInstr 4- Loop over users of the loadInstr 5- If the user
  * is GEP and matches the elemStrct 6- then we can proceed with CC: 6:1- find
  * storeInst user of the GEP (elemStrct) 6:2- perform CC based on the constant
  * value
+ *
+ * @param module
+ * @param vars
+ * @param funcName
+ * @param neckCaller
  */
 void LocalVariables::handlePtrToNestedStrct(
     Module &module,
@@ -327,10 +328,10 @@ void LocalVariables::handlePtrToNestedStrct(
   logger << strLogger.str();
 }
 
-/*
- * this function performs constant conversion after the neck for pointer to
- * nested struct after the neck iff the element's value hasnt been changed after
- * the neck by doing something similar to the function
+/**
+ * @brief this function performs constant conversion after the neck for pointer
+ * to nested struct after the neck iff the element's value hasnt been changed
+ * after the neck by doing something similar to the function
  * handlePtrToStructAfterNeck The main logic of this functions: 1- For each
  * nested struct, 1-1- find load inst that: its operand is matching the name of
  * the main strct and uses the corresponding alloc instruction to the main strct
@@ -338,14 +339,20 @@ void LocalVariables::handlePtrToNestedStrct(
  * strct and the index 3- find GEP2 that: uses GEP1, its operand is the name of
  * the element strct and the element index 4- check the users of GEP2 is load
  * instr and no store instr is a user of GEP2
+ *
+ * @param vars
+ * @param strLogger
  */
 void LocalVariables::handlePtrToNestedStructAfterNeck(
     map<tuple<string, string, uint64_t, uint64_t, int>, uint64_t> &vars,
     raw_string_ostream &strLogger) {}
 
-/*
- * this function replaces pointer to strct but after the neck iff the struct
- * hasnt been modified
+/**
+ * @brief this function replaces pointer to strct but after the neck iff the
+ * struct hasnt been modified
+ *
+ * @param gepInfo
+ * @param strLogger
  */
 void LocalVariables::replacePtrToStructPostNeck(
     vector<pair<GetElementPtrInst *, postNeckGepInfo>> gepInfo,
@@ -371,12 +378,17 @@ void LocalVariables::replacePtrToStructPostNeck(
   }
 }
 
-/*1- Check getelementptr instructions after the neck
+/**
+ * @brief 1- Check getelementptr instructions after the neck
  *2- check if the same struct name and same element index
  *3- If all are matching, then check all uses of the getelementptr and store
  *them in a vector. 4- if all use instructions are load, then we can convert
  *them into constants clocals: KEY: (0- structName 1- element index 2-
  *allocIdxInst) --> VALUE: (constant value)
+ *
+ * @param module
+ * @param clocals
+ * @param funcName
  */
 void LocalVariables::handlePtrToStructAfterNeck(
     Module &module, map<tuple<string, uint64_t, int>, uint64_t> &clocals,
@@ -475,13 +487,18 @@ void LocalVariables::handlePtrToStructAfterNeck(
  }
  */
 
-/*
- * This method does constant conversion for strcut
+/**
+ * @brief This method does constant conversion for strcut
  * the main logic is:
  * 1- find GEP instr with 3 operands
  * 2- find the users of the found GEP
  * 3- verify if this struct has corresponding const value in the list
  * structLocals 4- find if the user is store instr
+ *
+ * @param module
+ * @param structLocals
+ * @param funcName
+ * @param neckCaller
  */
 void LocalVariables::handleStructLocalVars(
     Module &module, map<tuple<string, uint64_t, int>, uint64_t> &structLocals,
@@ -535,15 +552,20 @@ void LocalVariables::handleStructLocalVars(
   inspectInitalizationPreNeck(module, structLocals, funcName);
 }
 
-/*
- * I need to decide which GEP operand that will be the allocate instr (I noticed
- * I need to check only operand 0) I need to do it now to handle only structs,
- * when GetElementPtrInst is used to compute the address of struct the number of
- * operands is 3. getelementptr t* %val, t1 idxInst1, t2 idxInst2
+/**
+ * @brief  I need to decide which GEP operand that will be the allocate instr (I
+ * noticed I need to check only operand 0) I need to do it now to handle only
+ * structs, when GetElementPtrInst is used to compute the address of struct the
+ * number of operands is 3. getelementptr t* %val, t1 idxInst1, t2 idxInst2
  * TODO this function logic looks similar to the function handleStructLocalVars,
  * except very minor differences processGepInstrPtrStruct is used here while
  * handleStructLocalVars uses processGepInstrStruct I might need to merge the
  * two functions together
+ *
+ * @param module
+ * @param ptrStructLocals
+ * @param funcName
+ * @param neckCaller
  */
 void LocalVariables::handlePtrToStrctLocalVars(
     Module &module,
@@ -595,9 +617,12 @@ void LocalVariables::handlePtrToStrctLocalVars(
   inspectInitalizationPreNeck(module, ptrStructLocals, funcName);
 }
 
-/*
- * This function does similar task to the list instList
+/**
+ * @brief This function does similar task to the list instList
  * TODO check if there is any duplication
+ *
+ * @param module
+ * @return map<uint64_t, Instruction *>
  */
 map<uint64_t, Instruction *> getAllInstr(Module &module) {
   map<uint64_t, Instruction *> insts;
@@ -652,13 +677,17 @@ void LocalVariables::handleStructInOtherMethods(
   }
 }
 
-/*
- * sometimes the struct variable is initalized in a different method than the
- * main method like the struct x in the main in `rm`: rm_option_init (&x) I need
- * to inspect these methods by checking: 1- all method calls before the main
- * method 2- check the arguments of each method if it contains the struct
+/**
+ * @brief sometimes the struct variable is initalized in a different method than
+ * the main method like the struct x in the main in `rm`: rm_option_init (&x) I
+ * need to inspect these methods by checking: 1- all method calls before the
+ * main method 2- check the arguments of each method if it contains the struct
  * variable,initalized
  * TODO this situation can happen with other variables
+ *
+ * @param module
+ * @param clocals
+ * @param funcName
  */
 void LocalVariables::inspectInitalizationPreNeck(
     Module &module, map<tuple<string, uint64_t, int>, uint64_t> &clocals,
@@ -702,11 +731,18 @@ string getVarName(map<AllocaInst *, std::string> &instrToVarName,
   return name;
 }
 
-/*
- * Iterate local variables
+/**
+ * @brief Iterate local variables
  * Find the use of variables after the neck
  * If the use is access (only load instructions) only without modification,
  * then we can convert to constant
+ *
+ * @param module
+ * @param plocals
+ * @param instrToIdxInst
+ * @param instList
+ * @param instrToVarName
+ * @param funcName
  */
 void LocalVariables::handleLocalPrimitiveUsesAfterNeck(
     Module &module, map<string, uint64_t> &plocals,
@@ -767,15 +803,6 @@ void LocalVariables::handleLocalPrimitiveUsesAfterNeck(
         }
       }
     }
-    //		llvm::outs() << "****BEFORE ldToRemove\n";
-    //		for (auto ld : ldToRemove)
-    //			if (ld->getNumUses() == 0) {
-    //				ld->eraseFromParent();
-    //				strLogger << "\t\tRemoving converted Load instr:
-    //"
-    //<< *ld
-    //						<< "\n";
-    //			}
   }
   logger << strLogger.str();
 }
