@@ -7,6 +7,7 @@
 
 #include "GlobalVariables.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "Utility.h"
 
@@ -26,18 +27,20 @@ void eraseElem(map<string, uint64_t> &globals, string key) {
  * @dump_packet_and_trunc, void (i8*, %struct.pcap_pkthdr*, i8*)** %19
  * I found this example in tcpdump
  * FIXME: i might need to traverse CG in case user functions are not invoked
- * directly in side the function that contains the neck
+ * directly inside the function that contains the neck
  */
 void GlobalVariables::removeModifiedVarsAfterNeck(
     Module &module, map<string, uint64_t> &newGlobals, string funcName,
     Function *neckCaller) {
+  logger << "INSIDE removeModifiedVarsAfterNeck\n";
   for (auto &gbl : module.globals()) {
     auto it = newGlobals.find(gbl.getName());
     if (it != newGlobals.end()) {
       std::set<string> funcNamesGblUsers;
-      logger << "Gbl Name: " << it->first << "\n";
       for (auto usr : gbl.users()) {
         if (auto si = dyn_cast<StoreInst>(usr)) {
+          logger << "Gbl Name: " << it->first << " ---Has STR usr"
+                 << "\n";
           funcNamesGblUsers.insert(si->getFunction()->getName());
         }
       }
@@ -58,13 +61,19 @@ void GlobalVariables::removeModifiedVarsAfterNeck(
               }
             }
         } else if (auto *st = dyn_cast<StoreInst>(&*curI)) {
-          if (returnIndex(instList, st) > neckIndex(module, instList, funcName))
+          if (returnIndex(instList, st) >
+              neckIndex(module, instList, funcName)) {
             if (funcNamesGblUsers.find(st->getOperand(0)->getName()) !=
                 funcNamesGblUsers.end()) {
               logger << "\nERASE ELEM SI***** \n";
               eraseElem(newGlobals, gbl.getName());
               break;
+            } else if (st->getOperand(1)->getName() == gbl.getName()) {
+              GlobalVariable *g = &gbl;
+              gblStoreInstAfterNeck.emplace(g, st);
+              break;
             }
+          }
         }
       }
     }
@@ -91,12 +100,18 @@ void GlobalVariables::handleGlobalVariables(
     }
   }
 
-  logger << "Remaind Variables After 1st iteration\n";
+  eraseElem(globals, "optind");
+  logger << "Remove optind"
+         << "\n";
+
+  eraseElem(globals, "euid");
+  logger << "Remove euid"
+         << "\n";
+
+  logger << "Remaind Variables After 1st iteration: " << globals.size() << "\n";
+
   for (auto &&kv : globals) {
     logger << kv.first << " " << kv.second << "\n";
-    eraseElem(globals, "optind");
-    logger << "Remove optind"
-           << "\n";
   }
 
   /** @brief the goal here is to keep global variables that are in this module
@@ -131,7 +146,8 @@ void GlobalVariables::handleGlobalVariables(
     }
   }
 
-  logger << "Remaind Variables After 2nd iteration\n";
+  logger << "Remaind Variables After 2nd iteration: " << newGlobals.size()
+         << "\n";
   for (auto &&kv : newGlobals) {
     logger << kv.first << " " << kv.second << "\n";
   }
@@ -140,13 +156,12 @@ void GlobalVariables::handleGlobalVariables(
   removeModifiedVarsAfterNeck(module, newGlobals, funcName, neckCaller);
   logger << "AFTER # ELEM: " << newGlobals.size() << "\n";
 
-  /** @brief I created a map to store the LD instr and it's corresponding value
+  /* I created a map to store the LD instr and it's corresponding value
    * to handle the following situation, where there are two subsequent LD instr,
    * so when I ReplaceInstWithValue, the counter will be incremanted and thus
    * miss converting the 2nd LD %11 = load i32, i32* @human_output_opts %12 =
    * load i64, i64* @output_block_size
    */
-  //
   map<Instruction *, ConstantInt *> loadInstToReplace;
 
   // make remaining globals constant
@@ -172,6 +187,10 @@ void GlobalVariables::handleGlobalVariables(
                 auto val = ConstantInt::get(intType, it->second);
 
                 Instruction *in = &*curI;
+
+                // outs() << "Replace inst: " << *in << " WithVal: " << *val
+                //        << "\n";
+
                 loadInstToReplace.emplace(in, val);
               }
             }
@@ -184,10 +203,45 @@ void GlobalVariables::handleGlobalVariables(
   // replace load instr with const
   for (auto elem : loadInstToReplace) {
     BasicBlock::iterator ii(elem.first);
-    //		logger << "\tReplace: " << elem.first << " WithVal: " <<
-    // elem.second->getZExtValue() << "\n";
+    // logger << "\tReplace: " << elem.first
+    //        << " WithVal: " << elem.second->getZExtValue() << "\n";
+    // outs() << "\tReplace: " << *elem.first
+    //        << " WithVal: " << elem.second->getZExtValue() << "\n";
     ReplaceInstWithValue(elem.first->getParent()->getInstList(), ii,
                          elem.second);
   }
+
+  /*for (auto &gbl : module.globals()) {
+    map<Instruction *, ConstantInt *> loadInstToReplace;
+    auto it = newGlobals.find(gbl.getName());
+    if (it != newGlobals.end()) {
+      for (auto usr : gbl.users()) {
+        if (auto ld = dyn_cast<LoadInst>(usr)) {
+          if (auto intType =
+                  dyn_cast<IntegerType>(gbl.getType()->getElementType())) {
+            auto val = ConstantInt::get(intType, it->second);
+            // loadInstToReplace.emplace(ld, val);
+            // i need to replace neck index with the index of st inst in the
+            GlobalVariable *g = &gbl;
+            auto gblStrItr = gblStoreInstAfterNeck.find(g);
+
+            if (ld->getFunction() == neckCaller) {
+              if (gblStrItr != gblStoreInstAfterNeck.end()) {
+                outs() << "FOUND LD usr: " << *ld << "\n";
+                outs() << "\tST: " << *gblStrItr->second << "\n";
+                if (returnIndex(instList, ld) <
+                    returnIndex(instList, gblStrItr->second)) {
+                  outs() << "\tReplace: " << *ld
+                         << " WithVal: " << val->getZExtValue() << "\n";
+                  BasicBlock::iterator ii(ld);
+                  ReplaceInstWithValue(ld->getParent()->getInstList(), ii, val);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }*/
 }
 } // namespace lmcas

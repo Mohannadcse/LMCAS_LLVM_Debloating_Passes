@@ -9,6 +9,7 @@
 
 #include "llvm/Analysis/AliasSetTracker.h"
 #include "llvm/IR/Attributes.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
@@ -721,6 +722,29 @@ void LocalVariables::inspectInitalizationPreNeck(
   }
   logger << strLogger.str();
 }
+/**
+ * @brief adds the argc value-1 `execlude counting the app name` obtained during
+ * the partial interpretation. It just adds `add` instruction immedietly before
+ * the terminator of the basic block to update the value of argc in the
+ * specialized app
+ */
+void handleArgc(Function *fn, AllocaInst *ai) {
+  for (auto I = inst_begin(fn), E = inst_end(fn); I != E; ++I) {
+    if (auto cs = dyn_cast<CallInst>(&*I)) {
+      if (cs->getCalledFunction()->getName() == "klee_dump_memory") {
+        LLVMContext &Context = fn->getContext();
+        IRBuilder<> Builder(Context);
+        Builder.SetInsertPoint(cs->getParent(), cs->getParent()->begin());
+        LoadInst *ld = Builder.CreateLoad(ai);
+        Value *ad = Builder.CreateAdd(
+            ld, ConstantInt::get(Type::getInt32Ty(Context), 1));
+        Builder.CreateStore(ad, ai);
+      }
+    }
+  }
+}
+
+int checkVarModifiedAfterTheNeck() {}
 
 string getVarName(map<AllocaInst *, std::string> &instrToVarName,
                   AllocaInst *ld) {
@@ -1029,7 +1053,7 @@ void LocalVariables::handlePrimitiveLocalVariables(
       }
     }
   }
-
+  int chgArgc = 0; // prevent invoking handleArgc more than one time
   for (auto curF = module.getFunctionList().begin(),
             endF = module.getFunctionList().end();
        curF != endF; ++curF) {
@@ -1053,8 +1077,14 @@ void LocalVariables::handlePrimitiveLocalVariables(
                 // I need to ignore some local variables like argc, because the
                 // number of arguments will be different after running the
                 // specalized apps. So argc variable should be delayed
-                if (getVarName(instrToVarName, opr) == "argc")
+                if (getVarName(instrToVarName, opr) == "argc") {
+                  // I may need to enable this logic once I figure out
+                  // if (!chgArgc) {
+                  //   handleArgc(&*curF, opr);
+                  //   chgArgc = 1;
+                  // }
                   continue;
+                }
 
                 // here I need to check the mapping list of local variables and
                 // their values

@@ -32,6 +32,7 @@ class GlobalVariables {
 private:
   ofstream logger;
   vector<Instruction *> instList;
+  map<GlobalVariable *, StoreInst *> gblStoreInstAfterNeck;
   void removeModifiedVarsAfterNeck(Module &module,
                                    map<string, uint64_t> &newGlobals,
                                    string funcName, Function *neckCaller);
