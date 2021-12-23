@@ -9,7 +9,7 @@ This repo contains 2 LLVM passes:
 Building steps:
 ===============
 
-The following steps use `LLVM 10.0`. You can build your own LLVM pass or download a precompiled version
+The following steps use `LLVM 12.0`. You can build your own LLVM pass or download a precompiled version
 
 1- clone the repo
 
@@ -17,8 +17,7 @@ The following steps use `LLVM 10.0`. You can build your own LLVM pass or downloa
 
 3- Run CMake with the path to the LLVM source:
 
-	cmake -DLLVM_DIR=<path-to-llvm>/lib/cmake/llvm -std=c++14 \
-			../LLVM_Debloating_Passes
+	cmake ../LLVM_Debloating_Passes
 	
 4- `make`
 
@@ -26,11 +25,17 @@ Usage:
 ======
  
 1- Debloating pass: 
-
+	
 	<path-to-llvm>/bin/opt -load \
-	build_debloat/Debloat/libLLVMDebloat.so \
- 	-debloat -globals=$gbls -locals=$locals -bbfile=bbs.txt \
-	 <.bc> -verify -o <.bc>
+	build_debloat/Debloat/libLLVMDebloat.so -debloat \
+	-globals=gbls.txt\
+    -plocals=primitiveLocals.txt \
+	-clocals=customizedLocals.txt\
+    -ptrStructlocals=ptrToStructLocals.txt \
+    -ptrToPrimLocals=ptrToPrimitiveLocals.txt \
+    -stringVars=stringVars.txt  \
+ 	-bbfile=bbs.txt -appName=${app} ${app}_orig.bc -verify -o ${app}_cc.bc
+	
 
 2- Profiling pass: 
 
