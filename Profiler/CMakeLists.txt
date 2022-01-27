@@ -1,4 +1,3 @@
-set (CMAKE_CXX_STANDARD 17)
 add_library(LLVMPprofiler MODULE
   Profiler.cpp
 )
@@ -6,7 +5,7 @@ add_library(LLVMPprofiler MODULE
 
 target_compile_features(LLVMPprofiler PRIVATE cxx_range_for cxx_auto_type)
 
-set_target_properties(LLVMPprofiler PROPERTIES
-    COMPILE_FLAGS "-fno-rtti"
-)
+# set_target_properties(LLVMPprofiler PROPERTIES
+#     COMPILE_FLAGS "-fno-rtti"
+# )
 

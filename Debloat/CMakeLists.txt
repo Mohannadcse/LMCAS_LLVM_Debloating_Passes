@@ -1,4 +1,3 @@
-set (CMAKE_CXX_STANDARD 17)
 include_directories(include)
 
 add_library(LLVMDebloat MODULE
@@ -13,6 +12,6 @@ add_library(LLVMDebloat MODULE
 
 target_compile_features(LLVMDebloat PRIVATE cxx_range_for cxx_auto_type)
 
-set_target_properties(LLVMDebloat PROPERTIES
-    COMPILE_FLAGS "-fno-rtti"
-)
+# set_target_properties(LLVMDebloat PROPERTIES
+#     COMPILE_FLAGS "-fno-rtti"
+# )

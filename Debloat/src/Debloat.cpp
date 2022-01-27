@@ -45,7 +45,7 @@ using namespace std;
 namespace lmcas
 {
   cl::opt<string>
-      GlobalsFile("globals",
+      GlobalsFile("gblInt",
                   cl::desc("file containing global to constant mapping"));
 
   cl::opt<string> PrimitiveLocalsFile(
@@ -64,8 +64,12 @@ namespace lmcas
       cl::desc("file containing nested structs to constant mapping"));
 
   cl::opt<string>
-      StringVars("stringVars",
-                 cl::desc("file containing mapping of string variables"));
+      StringVarsLcl("stringVarsLcl",
+                    cl::desc("file containing mapping of string variables"));
+
+  cl::opt<string>
+      StringVarsGbl("stringVarsGbl",
+                    cl::desc("file containing mapping of string variables"));
 
   cl::opt<string> CustomizedLocalsFile(
       "clocals",
@@ -98,7 +102,7 @@ namespace lmcas
     return res;
   }
 
-  map<string, uint64_t> populateGobals()
+  map<string, uint64_t> populateIntVarsGbl()
   {
     map<string, uint64_t> res;
     ifstream ifs(GlobalsFile.c_str());
@@ -147,10 +151,32 @@ namespace lmcas
     return app;
   }
 
-  map<uint64_t, pair<uint64_t, string>> populateStringVars()
+  map<string, string> populateStringVarsGbl()
+  {
+    map<string, string> res;
+    ifstream ifs(StringVarsGbl.c_str());
+    string line, name, value;
+    for (int i = 0; std::getline(ifs, line); i++)
+    {
+      if (line.find(" ") != std::string::npos)
+      {
+        splitString(line, ' ');
+        auto tmpVect = splitString(line, ' ');
+        name = tmpVect[0];
+        value = tmpVect[1];
+        res.emplace(name, value);
+      }
+    }
+    // llvm::outs() << "populateStringVarsGbl: " << res.size() << "\n";
+    // for (auto r : res)
+    //   llvm::outs() << r.first << "  ::  " << r.second << "\n";
+    return res;
+  }
+
+  map<uint64_t, pair<uint64_t, string>> populateStringVarsLcl()
   {
     map<uint64_t, pair<uint64_t, string>> res;
-    ifstream ifs(StringVars.c_str());
+    ifstream ifs(StringVarsLcl.c_str());
     uint64_t ptrIdx;
     uint64_t actualIdx;
     string value, fileName, line;
@@ -318,9 +344,9 @@ namespace lmcas
   }
 
   /*
- * this method adds the missing basic blocks till reach the neck. as klee
- * captures only the executed BBs
- */
+   * this method adds the missing basic blocks till reach the neck. as klee
+   * captures only the executed BBs
+   */
   void updateVisitedBasicBlocks(Module &module,
                                 set<pair<string, uint64_t>> &visitedBbs)
   {
@@ -395,11 +421,12 @@ namespace lmcas
       {
         set<pair<string, uint64_t>> visitedBbs = populateBasicBlocks();
         updateVisitedBasicBlocks(module, visitedBbs);
-        map<string, uint64_t> globals = populateGobals();
+        map<string, uint64_t> gblInt = populateIntVarsGbl();
+        map<string, string> strGbl = populateStringVarsGbl();
         map<string, uint64_t> plocals = populatePrimitiveLocals();
         map<uint64_t, pair<uint64_t, uint64_t>> ptrPrimLocals =
             populatePtrPrimitiveLocals();
-        map<uint64_t, pair<uint64_t, string>> strVars = populateStringVars();
+        map<uint64_t, pair<uint64_t, string>> strVars = populateStringVarsLcl();
         map<tuple<std::string, uint64_t, int>, uint64_t> ptrStrLocals =
             populatePtrStrctLocals();
         map<tuple<std::string, uint64_t, int>, uint64_t> structLocals =
@@ -414,16 +441,22 @@ namespace lmcas
           string funcName = neckCallerFuncInfo->getName().str();
           auto neckCaller = neckCallerFuncInfo.get_ptr();
 
-          LocalVariables lv(module, funcName);
-          // lv.initalizeInstList(module, funcName);
+          GlobalVariables gv(module, funcName);
 
-          if (globals.size() != 0)
+          if (gblInt.size() != 0)
           {
-            outs() << "\nConvert global variables: " << globals.size() << "\n";
-            GlobalVariables gv(module, funcName);
-            gv.handleGlobalVariables(module, globals, visitedBbs, funcName,
+            outs() << "\nConvert Global variables: " << gblInt.size() << "\n";
+            gv.handleGlobalVariables(module, gblInt, visitedBbs, funcName,
                                      neckCaller);
           }
+
+          if (strGbl.size() != 0)
+          {
+            outs() << "\nConvert Global string variables: " << strGbl.size() << "\n";
+            gv.handleStringVarsGbl(module, strGbl);
+          }
+
+          LocalVariables lv(module, funcName);
 
           if (plocals.size() != 0)
           {
@@ -480,6 +513,7 @@ namespace lmcas
 
       if (CleaningUp)
       {
+        outs() << "\nPerform CleaningUp\n";
         CleaningUpStuff cp;
         cp.removeUnusedStuff(module);
         //			AliasAnalysis &AA =

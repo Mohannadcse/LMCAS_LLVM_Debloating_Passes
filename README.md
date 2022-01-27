@@ -17,7 +17,7 @@ The following steps use `LLVM 12.0`. You can build your own LLVM pass or downloa
 
 3- Run CMake with the path to the LLVM source:
 
-	cmake ../LLVM_Debloating_Passes
+	cmake -DLLVM_DIR=<path-to-llvm-installation/build>/lib/cmake/llvm/ ../LLVM_Debloating_Passes
 	
 4- `make`
 
