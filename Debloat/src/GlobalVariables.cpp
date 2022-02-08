@@ -24,11 +24,10 @@ namespace lmcas
   }
 
   /** @brief the following logic to eliminate CC of global variables that are
-   * after the neck but used in functions other than where the neck is invoked
+   * after the neck but used in functions other than where the neck is invoked (typically, the main())
    * However, sometimes the function call is used as operand of a store instr,
-   * for example the function `dump_packet_and_trunc` is an operand for store
-   * void (i8*, %struct.pcap_pkthdr*, i8*)*
-   * @dump_packet_and_trunc, void (i8*, %struct.pcap_pkthdr*, i8*)** %19
+   * for example the function `dump_packet_and_trunc` is an operand for
+   * store * void (i8*, %struct.pcap_pkthdr*, i8*)* @dump_packet_and_trunc, void (i8*, %struct.pcap_pkthdr*, i8*)** %19
    * I found this example in tcpdump
    * FIXME: i might need to traverse CG in case user functions are not invoked
    * directly inside the function that contains the neck
@@ -46,10 +45,11 @@ namespace lmcas
         std::set<string> funcNamesGblUsers;
         for (auto usr : gbl.users())
         {
+          // check if the user of the global variable in the user function is store
           if (auto si = dyn_cast<StoreInst>(usr))
           {
-            *logger << "Gbl Name: " << it->first << " ---Has STR usr"
-                    << "\n";
+            *logger << "Gbl Name: " << it->first << " ---Has store usr---"
+                    << si->getFunction()->getName().str() << "---SI: " << *si << "\n";
             funcNamesGblUsers.insert(si->getFunction()->getName().str());
           }
         }
@@ -74,6 +74,7 @@ namespace lmcas
                 }
               }
           }
+          // store inst after the neck in the context of the same function where is the neck
           else if (auto *st = dyn_cast<StoreInst>(&*curI))
           {
             if (returnIndex(instList, st) >
@@ -82,14 +83,26 @@ namespace lmcas
               if (funcNamesGblUsers.find(st->getOperand(0)->getName().str()) !=
                   funcNamesGblUsers.end())
               {
-                *logger << "\nERASE ELEM SI***** \n";
+                *logger << "\nERASE gbl used by SI:: " << *st << "\n";
                 eraseElem(newGlobals, gbl.getName().str());
                 break;
               }
               else if (st->getOperand(1)->getName() == gbl.getName())
               {
-                GlobalVariable *g = &gbl;
-                gblStoreInstAfterNeck.emplace(g, st);
+                *logger << "\nIM HERE SI:: " << *st << "\n";
+                eraseElem(newGlobals, gbl.getName().str());
+                if (auto intType = dyn_cast<IntegerType>(
+                        gbl.getType()->getElementType()))
+                {
+                  *logger << "\nSet initial val before removal for:: " << it->first << " --TO-- " << it->second << "\n";
+                  auto val = ConstantInt::get(intType, it->second);
+                  gbl.setInitializer(val);
+                }
+                // sometimes initalizing the val isnt sufficient because the value is changed afterwards
+                // like the port variable in mini-httpd, therefore, i need to collect these variables
+                // in gblIntCCBeforeNeckOnly to perform CC later for store user instr of the global int var
+                // in the pre-neck
+                gblIntCCBeforeNeckOnly.insert(*it);
                 break;
               }
             }
@@ -192,6 +205,19 @@ namespace lmcas
     removeModifiedVarsAfterNeck(module, newGlobals, funcName, neckCaller);
     *logger << "AFTER # ELEM: " << newGlobals.size() << "\n";
 
+    *logger << "Remaind Variables After final pass: " << newGlobals.size()
+            << "\n";
+    for (auto &&kv : newGlobals)
+    {
+      *logger << kv.first << " " << kv.second << "\n";
+    }
+
+    *logger << "Only before neck CC: " << gblIntCCBeforeNeckOnly.size() << "\n";
+    for (auto &&kv : gblIntCCBeforeNeckOnly)
+    {
+      *logger << kv.first << " " << kv.second << "\n";
+    }
+
     /* I created a map to store the LD instr and it's corresponding value
      * to handle the following situation, where there are two subsequent LD instr,
      * so when I ReplaceInstWithValue, the counter will be incremanted and thus
@@ -230,9 +256,29 @@ namespace lmcas
                   auto val = ConstantInt::get(intType, it->second);
                   Instruction *in = &*curI;
                   loadInstToReplace.emplace(in, val);
+                  *logger << "Replace global int: " << gvar->getName().str() << " ::with: " << it->second << "\n";
+                  *logger << "\tINST: " << *in << "\n";
                 }
               }
             }
+          }
+          // this segment performs CC only before global int vars that their values
+          //  are changed after the neck
+          else if (auto si = dyn_cast<StoreInst>(&(*curI)))
+          {
+            if (returnIndex(instList, si) <
+                neckIndex(module, instList, funcName))
+              if (GlobalVariable *gvar =
+                      dyn_cast<GlobalVariable>(si->getPointerOperand()))
+              {
+                auto it = gblIntCCBeforeNeckOnly.find(gvar->getName().str());
+                if (it != gblIntCCBeforeNeckOnly.end())
+                {
+                  *logger << "Changing the operand of SI: " << *si << "\n";
+                  auto val = ConstantInt::get(si->getOperand(0)->getType(), it->second);
+                  si->setOperand(0, val);
+                }
+              }
           }
         }
       }
@@ -245,39 +291,6 @@ namespace lmcas
       ReplaceInstWithValue(elem.first->getParent()->getInstList(), ii,
                            elem.second);
     }
-
-    /*for (auto &gbl : module.globals()) {
-    map<Instruction *, ConstantInt *> loadInstToReplace;
-    auto it = newGlobals.find(gbl.getName());
-    if (it != newGlobals.end()) {
-      for (auto usr : gbl.users()) {
-        if (auto ld = dyn_cast<LoadInst>(usr)) {
-          if (auto intType =
-                  dyn_cast<IntegerType>(gbl.getType()->getElementType())) {
-            auto val = ConstantInt::get(intType, it->second);
-            // loadInstToReplace.emplace(ld, val);
-            // i need to replace neck index with the index of st inst in the
-            GlobalVariable *g = &gbl;
-            auto gblStrItr = gblStoreInstAfterNeck.find(g);
-
-            if (ld->getFunction() == neckCaller) {
-              if (gblStrItr != gblStoreInstAfterNeck.end()) {
-                outs() << "FOUND LD usr: " << *ld << "\n";
-                outs() << "\tST: " << *gblStrItr->second << "\n";
-                if (returnIndex(instList, ld) <
-                    returnIndex(instList, gblStrItr->second)) {
-                  outs() << "\tReplace: " << *ld
-                         << " WithVal: " << val->getZExtValue() << "\n";
-                  BasicBlock::iterator ii(ld);
-                  ReplaceInstWithValue(ld->getParent()->getInstList(), ii, val);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }*/
   }
 
   /**

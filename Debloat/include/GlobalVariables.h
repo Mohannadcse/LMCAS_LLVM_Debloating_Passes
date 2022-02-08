@@ -38,6 +38,7 @@ namespace lmcas
     llvm::raw_fd_ostream *logger;
     vector<Instruction *> instList;
     map<GlobalVariable *, StoreInst *> gblStoreInstAfterNeck;
+    map<string, uint64_t> gblIntCCBeforeNeckOnly;
     void removeModifiedVarsAfterNeck(Module &module,
                                      map<string, uint64_t> &newGlobals,
                                      string funcName, Function *neckCaller);
@@ -51,7 +52,6 @@ namespace lmcas
     {
       std::error_code EC;
       logger = new raw_fd_ostream("logger.txt", EC, llvm::sys::fs::OF_Append);
-      // logger.open("logger.txt", ofstream::app);
       instList = initalizePreNeckInstList(module, funcName);
     }
   };
